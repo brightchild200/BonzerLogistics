@@ -1,0 +1,83 @@
+I’m checking the legacy schema for the full sales/activity surface now, then I’ll summarize the concrete gaps relative to your current shared schema and UI without hand-waving.
+
+Searched for regex `activity|tracking|followup|attendance|sales_person|notification_logs|reminder` (`**/existing_schema`), 90 results
+
+Searched for regex `sales_attendance|sales_followups|sales_followup_reminders|sales_persons|users` (`**/lib/schema.ts`), 37 results
+
+Searched for regex `attendance|follow|visit|lead|profile` (`**/app/**/*.{ts,tsx}`), 200 results
+
+For the first module you’re building, the big thing you were missing was not just the tables, but the field-level activity trail that makes attendance and follow-up tracking useful.
+
+What your current app/UI already covers:
+- Basic attendance check-in and check-out.
+- Leads list.
+- Simple follow-ups.
+- Customer visits.
+- Profile summary with counts.
+
+What the legacy schema has that your current UI and earlier shared schema were missing for a real sales-activity system:
+- existing_schema has a proper sales person master in `sales_persons`, including `designation`, `department`, `date_of_joining`, `address`, `emergency_contact`, `pan_no`, bank details, and `user_id` link.
+- `sales_attendance` is much richer than the current app’s simple `attendance` table. It includes `sales_person_id`, `attendance_date`, `check_in_accuracy_meters`, `check_out_accuracy_meters`, `site_name`, `site_address`, `customer_id`, `job_id`, `visit_purpose`, `photo_path`, `status`, `approval_status`, `device_info`, and `ip_address`.
+- `sales_followups` has `followup_at`, `location_name`, `created_by`, and links to customer/job, which your current UI follow-ups do not model.
+- `sales_followup_reminders` and `notification_logs` are completely absent from the UI, so there is no reminder workflow or notification audit trail.
+- `users` in the legacy schema is a separate internal user table with `role`, `is_active`, `last_login`, etc., which is different from the Supabase auth user concept you’re using now.
+
+What is still missing if you want this to become a solid first phase:
+- A real sales person master screen.
+- A richer attendance record tied to location, customer, job, and approval flow.
+- A proper activity timeline, not just counts.
+- Reminder/notification tracking for follow-ups.
+- A clean link between auth user, sales person, and their activity data.
+
+So the short answer is: your current UI is fine for a lightweight demo, but it is missing the operational metadata that makes attendance and activity tracking actually useful in a sales workflow.
+
+I can do one of these next:
+1. Build you a complete “Phase 1” schema map of only the attendance/activity module.
+2. Expand lib/schema.ts to include the remaining legacy tables like customers, jobs, invoices, and masters.
+3. Design the exact UI pages you still need for sales person, attendance, follow-up reminders, and activity history.
+
+
+Phase 1, attendance/activity only:
+
+- Identity: users, sales_persons
+- Core attendance: sales_attendance
+- Core activity: sales_followups
+- Reminder layer: sales_followup_reminders
+- Audit layer: notification_logs
+
+Current app coverage versus legacy schema:
+
+- Already covered in your Expo app: profiles, attendance, follow_ups, customer_visits.
+- Missing from the real legacy module: sales_persons, users, sales_attendance, sales_followups, sales_followup_reminders, notification_logs.
+- Biggest gaps in the current shared schema: sales_person metadata, attendance geo/device/approval data, follow-up scheduling/ownership, and reminder/notification audit trail.
+
+Minimal Phase 1 schema map:
+
+| Table | Purpose | Key columns |
+|---|---|---|
+| users | internal login user record | id, username, password, role, is_active, full_name, email, phone, last_login, created_at |
+| sales_persons | sales rep master | id, name, email, mobile, is_active, user_id, designation, department, date_of_joining, address, emergency_contact, pan_no, bank_name, bank_account_no, ifsc_code, created_at |
+| sales_attendance | attendance + field visit capture | id, sales_person_id, user_id, attendance_date, check_in_at, check_out_at, check_in_lat/lng, check_out_lat/lng, accuracy, site_name, site_address, customer_id, job_id, visit_purpose, notes, photo_path, status, approval_status, device_info, ip_address, created_at, updated_at |
+| sales_followups | scheduled sales activity | id, sales_person_id, customer_id, job_id, title, followup_at, location_name, notes, status, created_by, created_at, updated_at |
+| sales_followup_reminders | reminder schedule | id, followup_id, reminder_type, remind_at, channel, status, sent_at, error_message, created_at |
+| notification_logs | delivery/audit trail | id, followup_id, reminder_id, sales_person_id, channel, recipient_phone, message, provider, provider_message_id, status, error_message, sent_at, created_at |
+
+Relations to keep:
+
+- sales_persons.user_id -> users.id
+- sales_attendance.sales_person_id -> sales_persons.id
+- sales_attendance.user_id -> users.id
+- sales_followups.sales_person_id -> sales_persons.id
+- sales_followups.created_by -> users.id
+- sales_followup_reminders.followup_id -> sales_followups.id
+- notification_logs.followup_id -> sales_followups.id
+- notification_logs.reminder_id -> sales_followup_reminders.id
+- notification_logs.sales_person_id -> sales_persons.id
+
+What you likely still need beyond the current UI:
+- A sales person master screen
+- An attendance screen that stores site, approval, and device metadata
+- A follow-up scheduler tied to sales_persons and users
+- Reminder generation and a notification log view
+
+If you want, I can turn this into a proper phase-1 schema file next and keep it limited strictly to these six tables.
