@@ -63,7 +63,7 @@ export type NotificationLogCard = {
 };
 
 export const COLORS = {
-  primary: '#206bc4',
+  primary: '#0f172a',
   primaryLight: '#e8f0fb',
   primaryDark: '#1a5499',
   success: '#2fb344',

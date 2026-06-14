@@ -14,6 +14,17 @@ export async function resolveSalespersonSession(authEmail: string | null | undef
     return { authEmail: null, appUser: null, salesperson: null };
   }
 
+  // Resolve the app user first so we can read `users.role` (admin vs sales_person)
+  const appUserRes = await supabase.from('users').select('*').ilike('email', email).maybeSingle();
+  const appUser = appUserRes.data ?? null;
+
+  // If admin, we don't require a sales_persons mapping
+  if (appUser?.role === 'admin') {
+    return { authEmail: email, appUser, salesperson: null };
+  }
+
+  // For non-admin users, resolve salesperson mapping.
+  // Primary strategy: sales_persons.email -> auth user email.
   const salesPersonByEmail = await supabase
     .from('sales_persons')
     .select('*')
@@ -21,27 +32,20 @@ export async function resolveSalespersonSession(authEmail: string | null | undef
     .maybeSingle();
 
   if (salesPersonByEmail.data) {
-    const appUser = salesPersonByEmail.data.user_id
-      ? await supabase.from('users').select('*').eq('id', salesPersonByEmail.data.user_id).maybeSingle()
-      : { data: null };
-
-    return {
-      authEmail: email,
-      appUser: appUser.data ?? null,
-      salesperson: salesPersonByEmail.data,
-    };
+    return { authEmail: email, appUser, salesperson: salesPersonByEmail.data };
   }
 
-  const appUser = await supabase.from('users').select('*').ilike('email', email).maybeSingle();
-  if (!appUser.data) {
-    return { authEmail: email, appUser: null, salesperson: null };
-  }
-
-  const salesPersonByUser = await supabase.from('sales_persons').select('*').eq('user_id', appUser.data.id).maybeSingle();
+  // Fallback: match through user_id.
+  // If users.email lookup failed (appUser null), we cannot use this fallback.
+  const salesPersonByUser = appUser
+    ? await supabase.from('sales_persons').select('*').eq('user_id', appUser.id).maybeSingle()
+    : { data: null };
 
   return {
     authEmail: email,
-    appUser: appUser.data,
+    appUser,
     salesperson: salesPersonByUser.data ?? null,
   };
 }
+
+

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<title>Logistics Pro - Home</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-container": "#e7edff",
+                    "status-followup": "#F59E0B",
+                    "primary-fixed-dim": "#a8c8ff",
+                    "secondary": "#00629d",
+                    "on-background": "#191c1e",
+                    "secondary-fixed-dim": "#99cbff",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-container-low": "#f2f4f7",
+                    "surface-container": "#eceef1",
+                    "error-container": "#ffdad6",
+                    "on-tertiary-fixed": "#111b2f",
+                    "on-error": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "on-primary": "#ffffff",
+                    "on-secondary-container": "#004470",
+                    "on-primary-fixed-variant": "#00468b",
+                    "status-won": "#10B981",
+                    "inverse-surface": "#2d3133",
+                    "background": "#f7f9fc",
+                    "secondary-fixed": "#cfe5ff",
+                    "on-tertiary-fixed-variant": "#3d475c",
+                    "on-surface": "#191c1e",
+                    "surface": "#f7f9fc",
+                    "primary": "#0052a1",
+                    "surface-container-highest": "#e0e3e6",
+                    "surface-dim": "#d8dadd",
+                    "outline": "#727783",
+                    "on-tertiary-container": "#e8edff",
+                    "status-contacted": "#6366F1",
+                    "on-primary-fixed": "#001b3d",
+                    "on-tertiary": "#ffffff",
+                    "tertiary-container": "#616b82",
+                    "surface-tint": "#005db5",
+                    "tertiary-fixed-dim": "#bcc6e1",
+                    "surface-variant": "#e0e3e6",
+                    "status-lost": "#EF4444",
+                    "primary-fixed": "#d6e3ff",
+                    "on-secondary-fixed": "#001d34",
+                    "tertiary-fixed": "#d8e2fd",
+                    "outline-variant": "#c2c6d4",
+                    "primary-container": "#206bc4",
+                    "surface-container-high": "#e6e8eb",
+                    "status-new": "#206BC4",
+                    "slate-text": "#475569",
+                    "on-secondary-fixed-variant": "#004a78",
+                    "on-error-container": "#93000a",
+                    "error": "#ba1a1a",
+                    "tertiary": "#495369",
+                    "inverse-on-surface": "#eff1f4",
+                    "border-subtle": "#E2E8F0",
+                    "secondary-container": "#61b4fd",
+                    "inverse-primary": "#a8c8ff",
+                    "surface-bright": "#f7f9fc",
+                    "on-surface-variant": "#424752"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "container-padding": "2rem",
+                    "stack-lg": "2rem",
+                    "sidebar-width": "260px",
+                    "gutter": "1.5rem",
+                    "stack-sm": "0.5rem",
+                    "stack-md": "1rem"
+            },
+            "fontFamily": {
+                    "mono-data": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-sm": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "body-sm": ["Inter"],
+                    "label-caps": ["Inter"],
+                    "body-md": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "mono-data": ["13px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "headline-sm": ["18px", {"lineHeight": "26px", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                    "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fc; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .ios-scrolling { -webkit-overflow-scrolling: touch; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface antialiased mb-20">
+<!-- TopAppBar -->
+<nav class="fixed top-0 w-full z-50 bg-surface dark:bg-on-background border-b border-border-subtle dark:border-outline-variant flex justify-between items-center h-16 px-4 md:px-container-padding">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed" style="font-size: 28px;">local_shipping</span>
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed">Logistics Flow</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-surface-container-low transition-colors p-2 rounded-full">notifications</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-border-subtle">
+<img alt="Profile" data-alt="A professional corporate headshot of a logistics manager in a modern office. The lighting is soft and natural, emphasizing a high-trust professional atmosphere. The background is a clean, slightly blurred minimalist workspace with a blue and white color palette that matches the corporate branding." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAzAxdePdLf0Kr8_oO-jB4dt5wEg40wCWRIE-j_9HtHCLuHVkTmA3_2cfR2Q4ue7wObJFstbdu-26R438Zc17ooXoOFUuXLUXRMTNLTjrWSsR-7oJv_uarkryz3FUwpPvKKgmKJxCukl7saf4v0KmyxVBzBJc-OFyysS6laRedjVnEXSs68vkKh6D8ERhT9CICPwJ-Cdnq_AdpLAV51K65a-SGe231x16wjzxL6P3QR-7Jp89ukI_n_S3IU0uElIfgB-gmMT_1GOJU"/>
+</div>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="mt-20 px-4 space-y-6">
+<!-- Welcome Header -->
+<section class="flex justify-between items-start">
+<div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Welcome back,</p>
+<h1 class="font-headline-md text-headline-md font-bold text-on-surface">James Carter</h1>
+</div>
+<div class="flex flex-col items-end">
+<div class="flex items-center gap-1.5 px-3 py-1 bg-status-won/10 rounded-full">
+<span class="w-2 h-2 rounded-full bg-status-won"></span>
+<span class="font-label-md text-label-md text-status-won font-semibold">Active Shift</span>
+</div>
+<span class="font-mono-data text-mono-data text-on-surface-variant mt-1">Check-in: 08:30 AM</span>
+</div>
+</section>
+<!-- KPI Cards Grid -->
+<section class="grid grid-cols-3 gap-3">
+<div class="bg-surface-container-lowest border border-border-subtle p-3 rounded-xl shadow-sm">
+<span class="font-label-caps text-label-caps text-on-surface-variant block mb-1">FOLLOW-UPS</span>
+<span class="font-headline-md text-headline-md font-bold text-status-followup">08</span>
+</div>
+<div class="bg-surface-container-lowest border border-border-subtle p-3 rounded-xl shadow-sm">
+<span class="font-label-caps text-label-caps text-on-surface-variant block mb-1">VISITS</span>
+<span class="font-headline-md text-headline-md font-bold text-status-contacted">12</span>
+</div>
+<div class="bg-surface-container-lowest border border-border-subtle p-3 rounded-xl shadow-sm">
+<span class="font-label-caps text-label-caps text-on-surface-variant block mb-1">LEADS</span>
+<span class="font-headline-md text-headline-md font-bold text-primary">24</span>
+</div>
+</section>
+<!-- Quick Actions -->
+<section>
+<h2 class="font-label-caps text-label-caps text-on-surface-variant mb-3 px-1">QUICK ACTIONS</h2>
+<div class="grid grid-cols-3 gap-3">
+<button class="flex flex-col items-center gap-2 p-4 bg-white border border-border-subtle rounded-xl active:scale-95 transition-transform">
+<div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">person_add</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface font-medium">Add Lead</span>
+</button>
+<button class="flex flex-col items-center gap-2 p-4 bg-white border border-border-subtle rounded-xl active:scale-95 transition-transform">
+<div class="w-10 h-10 rounded-full bg-status-contacted/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-status-contacted">add_location_alt</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface font-medium">Log Visit</span>
+</button>
+<button class="flex flex-col items-center gap-2 p-4 bg-white border border-border-subtle rounded-xl active:scale-95 transition-transform">
+<div class="w-10 h-10 rounded-full bg-status-followup/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-status-followup">calendar_add_on</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface font-medium">Schedule</span>
+</button>
+</div>
+</section>
+<!-- Current Shift & GPS -->
+<section class="bg-white border border-border-subtle rounded-xl overflow-hidden shadow-sm">
+<div class="h-32 w-full relative">
+<img alt="GPS Status Map" class="w-full h-full object-cover grayscale opacity-80" data-alt="A clean, top-down map interface showing a logistics route in a modern urban environment. The map uses a minimalist slate and white color palette with subtle blue accents for tracking markers and GPS coordinates. The style is professional and data-driven, similar to enterprise GPS fleet management systems." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD7-PjqiswXueuigQha6-GlBYSXuEK4q2hEpMtv6Ku1hb6rj5W19QBlLt39TZUdMh-x6ZfLMc6WW2Sml0rPwHYHeAGsVD_R0MLLJbhRb5ol2XUMPMNwYZ-uD8p32SYoPgQKl7UxhduI8xkSBlRkst0_8WPBmiYJH_nitaNXzmq4exvsMIdL_5yJeBfyrdNb5DvI-LeJqQakS_jAfTu8O3duqN3yLi_PEORCyjy0ibkBbBc1XrBj5gvkfEVRSh96ahyKF4an7M-HJU4"/>
+<div class="absolute inset-0 bg-gradient-to-t from-white/80 to-transparent"></div>
+<div class="absolute bottom-3 left-4 flex items-center gap-2">
+<div class="bg-primary text-white p-1 rounded-md">
+<span class="material-symbols-outlined" style="font-size: 18px;">my_location</span>
+</div>
+<span class="font-mono-data text-mono-data text-on-surface font-semibold">40.7128° N, 74.0060° W</span>
+</div>
+</div>
+<div class="p-4 space-y-4">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-on-surface-variant mt-0.5">location_on</span>
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant">CURRENT LOCATION</p>
+<p class="font-body-md text-body-md text-on-surface">Terminal 4, Port of New Jersey, NJ 07114</p>
+</div>
+</div>
+<button class="w-full h-12 bg-status-lost hover:opacity-90 active:scale-95 transition-all text-white font-headline-sm text-headline-sm rounded-lg flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">logout</span>
+                    Check Out
+                </button>
+</div>
+</section>
+<!-- Recent Activity Feed -->
+<section class="pb-10">
+<div class="flex justify-between items-center mb-4">
+<h2 class="font-label-caps text-label-caps text-on-surface-variant px-1">RECENT ACTIVITY</h2>
+<button class="text-primary font-label-md text-label-md">View All</button>
+</div>
+<div class="space-y-0 relative">
+<div class="absolute left-[19px] top-4 bottom-4 w-px bg-border-subtle"></div>
+<!-- Activity Item 1 -->
+<div class="flex gap-4 p-4 bg-white/50 relative">
+<div class="z-10 bg-status-won/10 rounded-full w-10 h-10 flex items-center justify-center shrink-0 border-2 border-background">
+<span class="material-symbols-outlined text-status-won" style="font-size: 20px;">task_alt</span>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex justify-between items-start w-full">
+<span class="font-body-md text-body-md text-on-surface font-semibold">Visit Completed</span>
+<span class="font-label-md text-label-md text-on-surface-variant">10m ago</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Logged visit at "Global Freight Solutions" - Status changed to 'Qualified'.</p>
+</div>
+</div>
+<!-- Activity Item 2 -->
+<div class="flex gap-4 p-4 bg-white/50 relative">
+<div class="z-10 bg-primary/10 rounded-full w-10 h-10 flex items-center justify-center shrink-0 border-2 border-background">
+<span class="material-symbols-outlined text-primary" style="font-size: 20px;">person_add</span>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex justify-between items-start w-full">
+<span class="font-body-md text-body-md text-on-surface font-semibold">New Lead Added</span>
+<span class="font-label-md text-label-md text-on-surface-variant">2h ago</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Alpha Logistics Hub added with 3 potential follow-up dates.</p>
+</div>
+</div>
+<!-- Activity Item 3 -->
+<div class="flex gap-4 p-4 bg-white/50 relative">
+<div class="z-10 bg-status-followup/10 rounded-full w-10 h-10 flex items-center justify-center shrink-0 border-2 border-background">
+<span class="material-symbols-outlined text-status-followup" style="font-size: 20px;">notifications_active</span>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex justify-between items-start w-full">
+<span class="font-body-md text-body-md text-on-surface font-semibold">Follow-up Missed</span>
+<span class="font-label-md text-label-md text-on-surface-variant">4h ago</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Scheduled call with Regional Manager, Port Authority was missed.</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-xl border-t border-border-subtle bg-surface dark:bg-on-background shadow-lg flex justify-around items-center h-16 pb-safe">
+<!-- Active: Home -->
+<a class="flex flex-col items-center justify-center text-primary dark:text-secondary-fixed-dim font-medium bg-secondary-container/10 rounded-full py-1 px-3 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-label-md text-label-md">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 duration-200" href="#">
+<span class="material-symbols-outlined">leaderboard</span>
+<span class="font-label-md text-label-md">Leads</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 duration-200" href="#">
+<span class="material-symbols-outlined">location_on</span>
+<span class="font-label-md text-label-md">Visits</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 duration-200" href="#">
+<span class="material-symbols-outlined">assignment_turned_in</span>
+<span class="font-label-md text-label-md">Attendance</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 duration-200" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a>
+</nav>
+<script>
+        // Simple Interaction: Attendance Toggle Simulation
+        const checkoutBtn = document.querySelector('button.bg-status-lost');
+        let checkedIn = true;
+
+        checkoutBtn.addEventListener('click', () => {
+            checkedIn = !checkedIn;
+            if (checkedIn) {
+                checkoutBtn.classList.remove('bg-status-won');
+                checkoutBtn.classList.add('bg-status-lost');
+                checkoutBtn.innerHTML = '<span class="material-symbols-outlined">logout</span> Check Out';
+                document.querySelector('.text-status-won').innerText = 'Active Shift';
+                document.querySelector('.bg-status-won').classList.remove('bg-status-lost');
+            } else {
+                checkoutBtn.classList.remove('bg-status-lost');
+                checkoutBtn.classList.add('bg-primary-container');
+                checkoutBtn.innerHTML = '<span class="material-symbols-outlined">login</span> Check In';
+                document.querySelector('.text-status-won').innerText = 'Shift Ended';
+                document.querySelector('.bg-status-won').classList.add('bg-status-lost');
+            }
+        });
+
+        // Add subtle hover effect for cards
+        const cards = document.querySelectorAll('.bg-surface-container-lowest');
+        cards.forEach(card => {
+            card.addEventListener('touchstart', () => card.style.opacity = '0.8');
+            card.addEventListener('touchend', () => card.style.opacity = '1');
+        });
+    </script>
+</body></html>

@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LogiTrack Pro - Follow-Up Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-container": "#004470",
+                        "status-won": "#10B981",
+                        "on-primary-fixed-variant": "#00468b",
+                        "inverse-surface": "#2d3133",
+                        "primary-fixed-dim": "#a8c8ff",
+                        "status-followup": "#F59E0B",
+                        "on-primary-container": "#e7edff",
+                        "secondary-fixed-dim": "#99cbff",
+                        "secondary": "#00629d",
+                        "on-background": "#191c1e",
+                        "on-tertiary-fixed": "#111b2f",
+                        "on-error": "#ffffff",
+                        "surface-container": "#eceef1",
+                        "error-container": "#ffdad6",
+                        "surface-container-low": "#f2f4f7",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "primary": "#0052a1",
+                        "surface-dim": "#d8dadd",
+                        "surface-container-highest": "#e0e3e6",
+                        "status-contacted": "#6366F1",
+                        "on-tertiary-container": "#e8edff",
+                        "outline": "#727783",
+                        "background": "#f7f9fc",
+                        "on-surface": "#191c1e",
+                        "secondary-fixed": "#cfe5ff",
+                        "on-tertiary-fixed-variant": "#3d475c",
+                        "surface": "#f7f9fc",
+                        "primary-fixed": "#d6e3ff",
+                        "on-secondary-fixed": "#001d34",
+                        "tertiary-fixed": "#d8e2fd",
+                        "surface-container-high": "#e6e8eb",
+                        "status-new": "#206BC4",
+                        "slate-text": "#475569",
+                        "primary-container": "#206bc4",
+                        "outline-variant": "#c2c6d4",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed-variant": "#004a78",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed": "#001b3d",
+                        "tertiary-container": "#616b82",
+                        "surface-tint": "#005db5",
+                        "tertiary-fixed-dim": "#bcc6e1",
+                        "status-lost": "#EF4444",
+                        "surface-variant": "#e0e3e6",
+                        "secondary-container": "#61b4fd",
+                        "surface-bright": "#f7f9fc",
+                        "on-surface-variant": "#424752",
+                        "inverse-primary": "#a8c8ff",
+                        "error": "#ba1a1a",
+                        "tertiary": "#495369",
+                        "inverse-on-surface": "#eff1f4",
+                        "border-subtle": "#E2E8F0"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "container-padding": "2rem",
+                        "stack-sm": "0.5rem",
+                        "stack-lg": "2rem",
+                        "sidebar-width": "260px",
+                        "gutter": "1.5rem",
+                        "stack-md": "1rem"
+                    },
+                    "fontFamily": {
+                        "body-sm": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "mono-data": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-caps": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "mono-data": ["13px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "headline-sm": ["18px", {"lineHeight": "26px", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fc; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
+        .sidebar-active { background-color: #cfe5ff; color: #001d34; font-weight: 600; border-radius: 0.5rem; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+        .calendar-day { min-height: 100px; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- Top Navigation Bar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-surface-container-lowest border-b border-border-subtle">
+<div class="flex items-center gap-4">
+<span class="font-headline-md text-headline-md font-bold text-primary">LogiTrack Pro</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden md:block">
+<input class="bg-surface-container-low border-none rounded-lg py-2 pl-10 pr-4 w-64 text-body-sm focus:ring-2 focus:ring-primary/20 transition-all" placeholder="Search leads or visits..." type="text"/>
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+</div>
+<button class="p-2 hover:bg-surface-container-low rounded-full transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+</button>
+<button class="p-2 hover:bg-surface-container-low rounded-full transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">help</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-secondary-fixed flex items-center justify-center overflow-hidden border border-border-subtle">
+<img alt="User Profile Avatar" data-alt="A professional close-up avatar of a corporate sales executive with a friendly expression. The visual style is minimalist and clean, utilizing the corporate blue and slate palette of the LogiTrack Pro design system. Soft, high-key studio lighting ensures a professional and trustworthy appearance, consistent with a modern logistics management interface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDofmHz3YqIkRtIrH-CqEuxJ_jaB5Xbpctjfk87wT6GuNPdn00iweEqKuA5qeDKlNFYWfpJRkPrQot_M7-xuyUlIJXl7gEFLGtkL3Vz-pAd1vlwvv5OlYUT21PCVrbpV9ULBRyRbXOaAFabzNEvJ1oiSylgbNoAfVA0yCuEtEVNf4KZz1NY3yO2rI-YcpcBy6zF3HWIXeEzwGAnHxDRSoalyEr6PYfzAZPZxXA1bWFM2NfG11QGWxElMY616TMfkAE6-RW4sRm52zM"/>
+</div>
+</div>
+</header>
+<!-- Sidebar Navigation -->
+<aside class="hidden md:flex flex-col border-r border-border-subtle fixed left-0 top-0 h-full w-[260px] bg-surface-container-lowest p-4 pt-20 z-40">
+<div class="mb-8 px-2">
+<div class="flex items-center gap-3 mb-1">
+<div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined">local_shipping</span>
+</div>
+<div>
+<h2 class="font-headline-sm text-headline-sm text-primary leading-tight">Sales Executive</h2>
+<p class="font-label-md text-label-md text-on-surface-variant">Field Operations</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant opacity-80 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant opacity-80 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined">fingerprint</span>
+<span class="font-label-md text-label-md">Attendance</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant opacity-80 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined">person_search</span>
+<span class="font-label-md text-label-md">Leads</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 sidebar-active transition-all duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">event_repeat</span>
+<span class="font-label-md text-label-md">Follow-Ups</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant opacity-80 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined">location_on</span>
+<span class="font-label-md text-label-md">Customer Visits</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant opacity-80 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined">account_circle</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a>
+</nav>
+<div class="mt-auto border-t border-border-subtle pt-4 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant opacity-80 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant opacity-80 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined">contact_support</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="md:ml-[260px] pt-16 pb-24 md:pb-8 px-4 md:px-8 max-w-7xl mx-auto">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row md:items-center justify-between py-8 gap-4">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface">Follow-Ups</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Manage your pipeline schedule and customer engagement.</p>
+</div>
+<button class="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-primary text-white font-label-md text-label-md rounded-lg hover:bg-primary/90 transition-all active:scale-95 shadow-sm">
+<span class="material-symbols-outlined text-[20px]">add</span>
+                Create Follow-Up
+            </button>
+</div>
+<!-- Dashboard Layout Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Left Column: Calendar View (Wider) -->
+<div class="lg:col-span-8 flex flex-col gap-gutter">
+<div class="bg-surface-container-lowest rounded-xl border border-border-subtle overflow-hidden">
+<!-- Calendar Header -->
+<div class="flex items-center justify-between p-4 border-b border-border-subtle">
+<div class="flex items-center gap-4">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">October 2023</h3>
+<div class="flex bg-surface-container rounded-lg p-1">
+<button class="p-1 hover:bg-white rounded transition-colors shadow-sm">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="p-1 hover:bg-white rounded transition-colors shadow-sm">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="px-3 py-1.5 bg-surface-container-low font-label-md text-label-md rounded-lg text-on-surface-variant">Month</button>
+<button class="px-3 py-1.5 hover:bg-surface-container-low font-label-md text-label-md rounded-lg text-on-surface-variant">Week</button>
+</div>
+</div>
+<!-- Calendar Body -->
+<div class="calendar-grid border-b border-border-subtle bg-surface-container-low text-on-surface-variant font-label-caps text-label-caps uppercase text-center py-2">
+<div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+</div>
+<div class="calendar-grid bg-white">
+<!-- Simplified Calendar Cells (Logic-free visualization) -->
+<!-- Prev month tail -->
+<div class="calendar-day p-2 border-r border-b border-border-subtle bg-surface-container-lowest/50 opacity-40 text-label-md">24</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle bg-surface-container-lowest/50 opacity-40 text-label-md">25</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle bg-surface-container-lowest/50 opacity-40 text-label-md">26</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle bg-surface-container-lowest/50 opacity-40 text-label-md">27</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle bg-surface-container-lowest/50 opacity-40 text-label-md">28</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle bg-surface-container-lowest/50 opacity-40 text-label-md">29</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle bg-surface-container-lowest/50 opacity-40 text-label-md">30</div>
+<!-- Current Month -->
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">1</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">2</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">3</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors relative">
+                            4
+                            <div class="mt-1 flex flex-col gap-1">
+<span class="bg-status-new/10 text-status-new text-[10px] px-1 rounded truncate border border-status-new/20">Call: Acme Corp</span>
+</div>
+</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">5</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">6</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">7</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">8</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">9</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">10</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">11</div>
+<!-- Today Highlight -->
+<div class="calendar-day p-2 border-r border-b border-border-subtle bg-primary/5 ring-1 ring-primary inset-0 text-label-md font-bold text-primary">
+                            12
+                            <div class="mt-1 flex flex-col gap-1">
+<span class="bg-primary text-white text-[10px] px-1 rounded truncate">Meeting: Global Log...</span>
+<span class="bg-status-followup/10 text-status-followup text-[10px] px-1 rounded truncate border border-status-followup/20">Email: Titan Ind</span>
+</div>
+</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">13</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">14</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">15</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">16</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors relative">
+                            17
+                            <div class="mt-1 flex flex-col gap-1">
+<span class="bg-status-won/10 text-status-won text-[10px] px-1 rounded truncate border border-status-won/20">Visit: Port Depot</span>
+</div>
+</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">18</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">19</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">20</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">21</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">22</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">23</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">24</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">25</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">26</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">27</div>
+<div class="calendar-day p-2 border-r border-b border-border-subtle text-label-md hover:bg-surface-container-low transition-colors">28</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Stats & Priority (Narrower) -->
+<div class="lg:col-span-4 flex flex-col gap-gutter">
+<!-- Section 1: Task Overview -->
+<div class="space-y-4">
+<h4 class="font-headline-sm text-headline-sm text-on-surface">Task Overview</h4>
+<div class="grid grid-cols-1 gap-3">
+<div class="bg-white border border-border-subtle p-4 rounded-xl flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-status-lost/10 flex items-center justify-center text-status-lost">
+<span class="material-symbols-outlined">warning</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant">Overdue</p>
+<h5 class="font-headline-md text-headline-md text-status-lost font-bold">12</h5>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant opacity-40">chevron_right</span>
+</div>
+<div class="bg-white border border-border-subtle p-4 rounded-xl flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">today</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant">Today</p>
+<h5 class="font-headline-md text-headline-md text-primary font-bold">8</h5>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant opacity-40">chevron_right</span>
+</div>
+<div class="bg-white border border-border-subtle p-4 rounded-xl flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-status-won/10 flex items-center justify-center text-status-won">
+<span class="material-symbols-outlined">event_upcoming</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant">Upcoming</p>
+<h5 class="font-headline-md text-headline-md text-status-won font-bold">24</h5>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant opacity-40">chevron_right</span>
+</div>
+</div>
+</div>
+<!-- Section 2: Priority Follow-Ups -->
+<div class="space-y-4">
+<h4 class="font-headline-sm text-headline-sm text-on-surface">Priority Follow-Ups</h4>
+<div class="space-y-3">
+<!-- Priority Item 1 -->
+<div class="bg-white border border-border-subtle p-3 rounded-xl hover:shadow-md transition-shadow cursor-pointer group">
+<div class="flex justify-between items-start mb-2">
+<span class="bg-status-lost/10 text-status-lost text-[11px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Urgent</span>
+<span class="font-mono-data text-mono-data text-on-surface-variant">10:30 AM</span>
+</div>
+<h6 class="font-label-md text-label-md font-bold text-on-surface">James Wilson</h6>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Apex Logistics Solution</p>
+<div class="mt-3 flex items-center gap-2 text-primary">
+<span class="material-symbols-outlined text-[18px]">call</span>
+<span class="font-label-md text-label-md">Phone Call</span>
+</div>
+</div>
+<!-- Priority Item 2 -->
+<div class="bg-white border border-border-subtle p-3 rounded-xl hover:shadow-md transition-shadow cursor-pointer group border-l-4 border-l-status-followup">
+<div class="flex justify-between items-start mb-2">
+<span class="bg-status-followup/10 text-status-followup text-[11px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">High</span>
+<span class="font-mono-data text-mono-data text-on-surface-variant">02:00 PM</span>
+</div>
+<h6 class="font-label-md text-label-md font-bold text-on-surface">Sarah Chen</h6>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Pacific Rim Export</p>
+<div class="mt-3 flex items-center gap-2 text-status-contacted">
+<span class="material-symbols-outlined text-[18px]">groups</span>
+<span class="font-label-md text-label-md">In-person Meeting</span>
+</div>
+</div>
+<!-- Priority Item 3 -->
+<div class="bg-white border border-border-subtle p-3 rounded-xl hover:shadow-md transition-shadow cursor-pointer group">
+<div class="flex justify-between items-start mb-2">
+<span class="bg-surface-container-high text-on-surface-variant text-[11px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Medium</span>
+<span class="font-mono-data text-mono-data text-on-surface-variant">04:45 PM</span>
+</div>
+<h6 class="font-label-md text-label-md font-bold text-on-surface">Michael O'Connor</h6>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Harbor Global Trade</p>
+<div class="mt-3 flex items-center gap-2 text-secondary">
+<span class="material-symbols-outlined text-[18px]">mail</span>
+<span class="font-label-md text-label-md">Contract Email</span>
+</div>
+</div>
+</div>
+<button class="w-full py-2 text-primary font-label-md text-label-md border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors">
+                        View All Priorities
+                    </button>
+</div>
+</div>
+</div>
+<!-- Upcoming Follow-Ups List (Bottom Section) -->
+<section class="mt-gutter space-y-4">
+<div class="flex items-center justify-between">
+<h4 class="font-headline-sm text-headline-sm text-on-surface">Upcoming Follow-Ups List</h4>
+<div class="flex gap-2">
+<button class="flex items-center gap-2 px-3 py-1.5 border border-border-subtle rounded-lg text-body-sm text-on-surface-variant hover:bg-white transition-colors">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+                        Filter
+                    </button>
+<button class="flex items-center gap-2 px-3 py-1.5 border border-border-subtle rounded-lg text-body-sm text-on-surface-variant hover:bg-white transition-colors">
+<span class="material-symbols-outlined text-[18px]">download</span>
+                        Export
+                    </button>
+</div>
+</div>
+<div class="bg-white border border-border-subtle rounded-xl overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-border-subtle">
+<th class="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Lead Name</th>
+<th class="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Company</th>
+<th class="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Scheduled Date/Time</th>
+<th class="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Type</th>
+<th class="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-border-subtle">
+<tr class="hover:bg-surface-container-lowest/50 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">EL</div>
+<span class="font-label-md text-label-md text-on-surface">Elena Rodriguez</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="font-body-md text-body-md text-on-surface-variant">Skyline Freight</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface">Oct 13, 2023</span>
+<span class="font-mono-data text-mono-data text-on-surface-variant text-[12px]">09:00 AM</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-secondary-fixed text-on-secondary-fixed text-[11px] font-bold uppercase">
+<span class="material-symbols-outlined text-[14px]">call</span> Call
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="px-4 py-1.5 bg-status-won text-white font-label-md text-label-md rounded-lg hover:shadow-md transition-all active:scale-95">Complete</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest/50 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center text-secondary font-bold text-xs">BK</div>
+<span class="font-label-md text-label-md text-on-surface">Brian Kim</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="font-body-md text-body-md text-on-surface-variant">Blue Ocean Logix</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface">Oct 13, 2023</span>
+<span class="font-mono-data text-mono-data text-on-surface-variant text-[12px]">11:30 AM</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-tertiary-fixed text-on-tertiary-fixed text-[11px] font-bold uppercase">
+<span class="material-symbols-outlined text-[14px]">mail</span> Email
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="px-4 py-1.5 bg-status-won text-white font-label-md text-label-md rounded-lg hover:shadow-md transition-all active:scale-95">Complete</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest/50 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-status-contacted/10 flex items-center justify-center text-status-contacted font-bold text-xs">DW</div>
+<span class="font-label-md text-label-md text-on-surface">David Wright</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="font-body-md text-body-md text-on-surface-variant">Iron Gate Shipping</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface">Oct 13, 2023</span>
+<span class="font-mono-data text-mono-data text-on-surface-variant text-[12px]">03:45 PM</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-primary-fixed text-on-primary-fixed text-[11px] font-bold uppercase">
+<span class="material-symbols-outlined text-[14px]">handshake</span> Meeting
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="px-4 py-1.5 bg-status-won text-white font-label-md text-label-md rounded-lg hover:shadow-md transition-all active:scale-95">Complete</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-6 py-4 bg-surface-container-low flex items-center justify-between">
+<span class="font-body-sm text-body-sm text-on-surface-variant">Showing 3 of 24 upcoming tasks</span>
+<div class="flex items-center gap-2">
+<button class="p-1 border border-border-subtle rounded hover:bg-white transition-colors disabled:opacity-50" disabled="">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="p-1 border border-border-subtle rounded hover:bg-white transition-colors">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Mobile Bottom Navigation Bar -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-white border-t border-border-subtle shadow-lg">
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-2" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-md text-label-md">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-2" href="#">
+<span class="material-symbols-outlined">person_search</span>
+<span class="font-label-md text-label-md">Leads</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-2" href="#">
+<span class="material-symbols-outlined">map</span>
+<span class="font-label-md text-label-md">Visits</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-xl p-2 px-4 shadow-sm" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">event_upcoming</span>
+<span class="font-label-md text-label-md">Tasks</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-2" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a>
+</nav>
+<script>
+        // Simple interactive demo logic
+        document.querySelectorAll('button, a').forEach(el => {
+            el.addEventListener('mousedown', () => {
+                el.classList.add('scale-95');
+                setTimeout(() => el.classList.remove('scale-95'), 150);
+            });
+        });
+
+        // Search bar interaction
+        const searchInput = document.querySelector('input[type="text"]');
+        if(searchInput) {
+            searchInput.addEventListener('focus', () => {
+                searchInput.classList.add('w-80');
+            });
+            searchInput.addEventListener('blur', () => {
+                searchInput.classList.remove('w-80');
+            });
+        }
+    </script>
+</body></html>

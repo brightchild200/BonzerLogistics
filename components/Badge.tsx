@@ -30,3 +30,6 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4, alignSelf: 'flex-start' },
   label: { fontSize: 11, fontWeight: '600', letterSpacing: 0.3 },
 });
+
+
+

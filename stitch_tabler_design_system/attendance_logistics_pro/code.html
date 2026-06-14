@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Attendance</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Styling -->
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            vertical-align: middle;
+        }
+    </style>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#0052a1",
+                        "surface-container-high": "#e6e8eb",
+                        "on-surface-variant": "#424752",
+                        "status-followup": "#F59E0B",
+                        "primary-container": "#206bc4",
+                        "on-secondary-fixed-variant": "#004a78",
+                        "surface-container": "#eceef1",
+                        "primary-fixed-dim": "#a8c8ff",
+                        "on-tertiary-container": "#e8edff",
+                        "on-secondary-container": "#004470",
+                        "surface-dim": "#d8dadd",
+                        "secondary": "#00629d",
+                        "secondary-fixed-dim": "#99cbff",
+                        "on-error-container": "#93000a",
+                        "tertiary-container": "#616b82",
+                        "surface-container-lowest": "#ffffff",
+                        "border-subtle": "#E2E8F0",
+                        "surface-container-highest": "#e0e3e6",
+                        "outline": "#727783",
+                        "surface-container-low": "#f2f4f7",
+                        "surface-bright": "#f7f9fc",
+                        "surface-variant": "#e0e3e6",
+                        "secondary-container": "#61b4fd",
+                        "on-error": "#ffffff",
+                        "outline-variant": "#c2c6d4",
+                        "background": "#f7f9fc",
+                        "surface-tint": "#005db5",
+                        "status-contacted": "#6366F1",
+                        "inverse-on-surface": "#eff1f4",
+                        "tertiary-fixed": "#d8e2fd",
+                        "primary-fixed": "#d6e3ff",
+                        "tertiary": "#495369",
+                        "on-secondary": "#ffffff",
+                        "slate-text": "#475569",
+                        "on-tertiary-fixed": "#111b2f",
+                        "on-surface": "#191c1e",
+                        "on-secondary-fixed": "#001d34",
+                        "tertiary-fixed-dim": "#bcc6e1",
+                        "on-tertiary": "#ffffff",
+                        "secondary-fixed": "#cfe5ff",
+                        "on-background": "#191c1e",
+                        "on-primary": "#ffffff",
+                        "status-lost": "#EF4444",
+                        "inverse-surface": "#2d3133",
+                        "status-won": "#10B981",
+                        "error": "#ba1a1a",
+                        "status-new": "#206BC4",
+                        "inverse-primary": "#a8c8ff",
+                        "on-primary-fixed-variant": "#00468b",
+                        "surface": "#f7f9fc",
+                        "on-tertiary-fixed-variant": "#3d475c",
+                        "on-primary-container": "#e7edff",
+                        "error-container": "#ffdad6",
+                        "on-primary-fixed": "#001b3d"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "stack-md": "1rem",
+                        "stack-sm": "0.5rem",
+                        "stack-lg": "2rem",
+                        "container-padding": "2rem",
+                        "sidebar-width": "260px",
+                        "gutter": "1.5rem"
+                    },
+                    "fontFamily": {
+                        "headline-sm": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "mono-data": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "headline-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-sm": ["18px", {"lineHeight": "26px", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "mono-data": ["13px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-md min-h-screen">
+<!-- SideNavBar (Authority: JSON & Design System) -->
+<aside class="fixed left-0 top-0 h-full w-[260px] bg-surface border-r border-border-subtle flex flex-col py-6 px-4 z-50">
+<div class="mb-8">
+<h1 class="text-headline-md font-headline-md font-bold text-primary">Logistics Pro</h1>
+<p class="text-label-md font-label-md text-on-surface-variant">Sales Management</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200 cursor-pointer rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<!-- Active State Logic: Attendance is the current screen -->
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-lg font-bold transition-colors duration-200 cursor-pointer" href="#">
+<span class="material-symbols-outlined" data-icon="location_on">location_on</span>
+<span class="font-label-md text-label-md">Attendance</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200 cursor-pointer rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="person_search">person_search</span>
+<span class="font-label-md text-label-md">Leads</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200 cursor-pointer rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="event_repeat">event_repeat</span>
+<span class="font-label-md text-label-md">Follow-Ups</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200 cursor-pointer rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="route">route</span>
+<span class="font-label-md text-label-md">Customer Visits</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200 cursor-pointer rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a>
+</nav>
+<div class="mt-auto pt-6 border-t border-border-subtle">
+<button class="w-full bg-primary text-on-primary py-2 px-4 rounded-lg font-bold mb-6 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+                New Lead
+            </button>
+<div class="space-y-1">
+<!-- Future Modules (60% opacity per guidance) -->
+<a class="flex items-center gap-3 px-4 py-3 text-slate-text opacity-60 hover:opacity-100 transition-all duration-200 cursor-pointer rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="rocket_launch">rocket_launch</span>
+<span class="font-label-md text-label-md">Future Modules</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200 cursor-pointer rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- TopNavBar -->
+<header class="sticky top-0 z-40 w-full ml-[260px] max-w-[calc(100%-260px)] bg-surface-container-lowest border-b border-border-subtle shadow-sm flex items-center justify-between px-gutter py-3">
+<div class="flex items-center gap-4">
+<span class="text-headline-sm font-headline-sm font-black text-primary">Logistics CRM</span>
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline" data-icon="search">search</span>
+<input class="pl-10 pr-4 py-1.5 bg-surface-container-low border-none rounded-xl text-body-sm w-64 focus:ring-2 focus:ring-primary/20" placeholder="Search data..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4 text-on-surface-variant">
+<button class="p-1 hover:bg-surface-container-low rounded-full transition-all scale-95 active:scale-100">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-1 hover:bg-surface-container-low rounded-full transition-all scale-95 active:scale-100">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+</button>
+</div>
+<div class="flex items-center gap-3 pl-4 border-l border-border-subtle">
+<div class="text-right">
+<p class="text-body-sm font-bold">Alex Johnson</p>
+<p class="text-label-md text-on-surface-variant">Senior Executive</p>
+</div>
+<img alt="Manager Profile" class="w-10 h-10 rounded-full object-cover border-2 border-primary-container" data-alt="A professional headshot of a corporate manager in a sharp blue suit, set against a blurred modern office background with soft cinematic lighting. The visual style is clean and high-end, matching a professional SaaS CRM interface. The color palette emphasizes deep navy and crisp whites." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAANBDgHkQkEAiBTVdi7X-SG7nvomiZEQMw3CMwUsFeEDrY4c4CN0lK9eAbMpoAEE5IVT-Wh3qC0462W4a3D3rusMGB6cbAqTPcVQ_6YIublrePf-QlMK8amhzN1TcHm2xbgVRzvPUhY395tyBHKJC99f9AaC03To2wVcVM8xWWVtZsK-LOg9C0y3qo8HfjmT5vJZeq7cf3CMXrZCWTI-z6H-r_BbBJ8VxryHWrEVCPpNPDyCVD7UjrhlqB_ibH_thzpbBcxeRJb2k"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-[260px] p-container-padding max-w-[1400px]">
+<!-- Header -->
+<div class="mb-stack-lg">
+<h2 class="text-headline-lg font-headline-lg text-on-surface">Attendance</h2>
+<p class="text-body-lg font-body-lg text-slate-text">Track field executive check-ins and location history.</p>
+</div>
+<!-- Dashboard Layout Grid -->
+<div class="grid grid-cols-12 gap-gutter">
+<!-- 1. Active Attendance Status Card (Bento Large) -->
+<div class="col-span-12 lg:col-span-8 bg-surface-container-lowest border border-border-subtle rounded-xl overflow-hidden flex flex-col md:flex-row">
+<div class="flex-1 p-6 flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-3 mb-4">
+<div class="w-3 h-3 rounded-full bg-status-won animate-pulse"></div>
+<span class="text-label-caps font-label-caps text-on-surface-variant uppercase">Current Status</span>
+</div>
+<h3 class="text-headline-md font-headline-md mb-2">Active Shift</h3>
+<p class="text-body-md text-slate-text mb-6">Checked in at 08:32 AM • Sector 45, Gurgaon</p>
+<div class="space-y-3 mb-8">
+<div class="flex items-center gap-3 bg-surface-container-low p-3 rounded-lg border border-border-subtle/50">
+<span class="material-symbols-outlined text-primary" data-icon="location_on">location_on</span>
+<div>
+<p class="text-label-md text-on-surface-variant">Live Location Address</p>
+<p class="text-body-sm font-medium">Cyber Hub, Building 8C, DLF Phase 2, Gurgaon, 122002</p>
+</div>
+</div>
+<div class="flex items-center gap-6 px-3">
+<div>
+<p class="text-label-md text-on-surface-variant">Latitude</p>
+<p class="font-mono-data text-mono-data">28.4951° N</p>
+</div>
+<div>
+<p class="text-label-md text-on-surface-variant">Longitude</p>
+<p class="font-mono-data text-mono-data">77.0894° E</p>
+</div>
+</div>
+</div>
+</div>
+<div class="flex gap-4">
+<button class="flex-1 py-3 px-6 bg-surface-container border border-outline-variant text-on-surface-variant rounded-lg font-bold transition-all hover:bg-surface-container-high flex items-center justify-center gap-2 cursor-not-allowed opacity-50" disabled="">
+<span class="material-symbols-outlined" data-icon="login">login</span>
+                            Check In
+                        </button>
+<button class="flex-1 py-3 px-6 bg-error text-on-error rounded-lg font-bold transition-all hover:bg-red-700 flex items-center justify-center gap-2 shadow-lg shadow-error/20">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+                            Check Out
+                        </button>
+</div>
+</div>
+<!-- Map Preview -->
+<div class="w-full md:w-[320px] bg-surface-container-high relative min-h-[300px]">
+<img alt="Location Map" class="w-full h-full object-cover" data-alt="A clean, minimalist satellite map view of a high-tech corporate business district with structured grids and modern buildings. The image is styled with a slight blue overlay to match the logistics CRM theme, emphasizing precision and GPS accuracy. Professional lighting and high-definition details throughout." data-location="Gurgaon" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3zHtYxpsHpm9F8AhiTpNl5037p1TwZN2a8CzqmCejG3jNYAfLOBQleVyRT0P72tr0TcaeMRSK_SRF-bJnwri1C3IXmE37WgR_aXujMTiLwiXaPAN626BNugNf2qIFPYu2WkxuyenzQ3gt4y4Igyo9j-GPpXorOvVB_qvmREiiBFqRciE1LPqKQjzw71dxxAKiouTmP99Hp8WLkfS8OKq_TSzDcWa7ihw3PNjcC9V5fvWStw2o-tfWeQf7lq79YXxs42qMRz8qpn4"/>
+<div class="absolute inset-0 bg-primary/5 flex items-center justify-center pointer-events-none">
+<div class="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center animate-ping">
+<div class="w-4 h-4 bg-primary rounded-full border-2 border-white"></div>
+</div>
+</div>
+<div class="absolute bottom-4 right-4 bg-surface-container-lowest px-3 py-1.5 rounded-full shadow-md flex items-center gap-2 border border-border-subtle">
+<span class="material-symbols-outlined text-primary text-[18px]" data-icon="my_location" style="font-variation-settings: 'FILL' 1;">my_location</span>
+<span class="text-label-md font-bold">GPS: High Accuracy</span>
+</div>
+</div>
+</div>
+<!-- 2. Attendance Summary Statistics -->
+<div class="col-span-12 lg:col-span-4 grid grid-cols-1 gap-4">
+<div class="bg-surface-container-lowest border border-border-subtle p-5 rounded-xl flex items-center justify-between">
+<div>
+<p class="text-label-md text-on-surface-variant mb-1">Total Work Hours (Week)</p>
+<h4 class="text-headline-md font-bold">42.5 hrs</h4>
+</div>
+<div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="schedule">schedule</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest border border-border-subtle p-5 rounded-xl flex items-center justify-between">
+<div>
+<p class="text-label-md text-on-surface-variant mb-1">On-Time Percentage</p>
+<h4 class="text-headline-md font-bold text-status-won">94.2%</h4>
+</div>
+<div class="w-12 h-12 bg-status-won/10 rounded-full flex items-center justify-center text-status-won">
+<span class="material-symbols-outlined" data-icon="done_all">done_all</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest border border-border-subtle p-5 rounded-xl flex items-center justify-between">
+<div>
+<p class="text-label-md text-on-surface-variant mb-1">Avg Check-in Time</p>
+<h4 class="text-headline-md font-bold">08:45 AM</h4>
+</div>
+<div class="w-12 h-12 bg-status-followup/10 rounded-full flex items-center justify-center text-status-followup">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest border border-border-subtle p-5 rounded-xl flex items-center justify-between">
+<div>
+<p class="text-label-md text-on-surface-variant mb-1">Days Present (Month)</p>
+<h4 class="text-headline-md font-bold">18 / 22</h4>
+</div>
+<div class="w-12 h-12 bg-secondary/10 rounded-full flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
+</div>
+</div>
+</div>
+<!-- 3. Search and Filter -->
+<div class="col-span-12 mt-4 bg-surface-container-lowest border border-border-subtle p-4 rounded-xl flex flex-wrap items-center justify-between gap-4">
+<div class="flex items-center gap-4 flex-wrap">
+<div class="flex items-center gap-2 px-3 py-1.5 border border-border-subtle rounded-lg bg-surface">
+<span class="material-symbols-outlined text-outline text-[20px]" data-icon="calendar_today">calendar_today</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-sm w-48" type="text" value="Oct 01, 2023 - Oct 20, 2023"/>
+</div>
+<div class="flex items-center gap-2 px-3 py-1.5 border border-border-subtle rounded-lg bg-surface">
+<span class="material-symbols-outlined text-outline text-[20px]" data-icon="filter_list">filter_list</span>
+<select class="bg-transparent border-none focus:ring-0 text-body-sm appearance-none pr-8">
+<option>All Statuses</option>
+<option>Present</option>
+<option>Late</option>
+<option>Half-Day</option>
+</select>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 border border-border-subtle rounded-lg text-body-sm font-medium hover:bg-surface-container-low transition-colors">Export CSV</button>
+<button class="px-4 py-2 bg-primary text-on-primary rounded-lg text-body-sm font-medium hover:bg-primary-container transition-colors">Apply Filters</button>
+</div>
+</div>
+<!-- 4. Attendance History Table -->
+<div class="col-span-12 bg-surface-container-lowest border border-border-subtle rounded-xl overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-border-subtle">
+<th class="px-6 py-4 text-label-caps font-label-caps text-on-surface-variant">Date</th>
+<th class="px-6 py-4 text-label-caps font-label-caps text-on-surface-variant">Check-In</th>
+<th class="px-6 py-4 text-label-caps font-label-caps text-on-surface-variant">Check-Out</th>
+<th class="px-6 py-4 text-label-caps font-label-caps text-on-surface-variant">Duration</th>
+<th class="px-6 py-4 text-label-caps font-label-caps text-on-surface-variant">Location (Address)</th>
+<th class="px-6 py-4 text-label-caps font-label-caps text-on-surface-variant">Status</th>
+<th class="px-6 py-4 text-label-caps font-label-caps text-on-surface-variant text-right">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-border-subtle">
+<tr class="hover:bg-surface-container-lowest transition-colors">
+<td class="px-6 py-4 text-body-sm font-medium">Oct 20, 2023</td>
+<td class="px-6 py-4 text-body-sm">08:32 AM</td>
+<td class="px-6 py-4 text-body-sm text-outline-variant italic">Active</td>
+<td class="px-6 py-4 text-body-sm">7h 45m</td>
+<td class="px-6 py-4 text-body-sm text-on-surface-variant truncate max-w-[200px]">Sector 45, Gurgaon...</td>
+<td class="px-6 py-4">
+<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-status-won/10 text-status-won">Present</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary hover:underline text-body-sm font-bold flex items-center gap-1 justify-end">
+<span class="material-symbols-outlined text-[16px]" data-icon="map">map</span> View Map
+                                    </button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-6 py-4 text-body-sm font-medium">Oct 19, 2023</td>
+<td class="px-6 py-4 text-body-sm">09:15 AM</td>
+<td class="px-6 py-4 text-body-sm">06:45 PM</td>
+<td class="px-6 py-4 text-body-sm">9h 30m</td>
+<td class="px-6 py-4 text-body-sm text-on-surface-variant truncate max-w-[200px]">Phase 3, Cyber City, Gurgaon</td>
+<td class="px-6 py-4">
+<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-status-followup/10 text-status-followup">Late</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary hover:underline text-body-sm font-bold flex items-center gap-1 justify-end">
+<span class="material-symbols-outlined text-[16px]" data-icon="map">map</span> View Map
+                                    </button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-6 py-4 text-body-sm font-medium">Oct 18, 2023</td>
+<td class="px-6 py-4 text-body-sm">08:45 AM</td>
+<td class="px-6 py-4 text-body-sm">05:30 PM</td>
+<td class="px-6 py-4 text-body-sm">8h 45m</td>
+<td class="px-6 py-4 text-body-sm text-on-surface-variant truncate max-w-[200px]">Global Business Park, Gurgaon</td>
+<td class="px-6 py-4">
+<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-status-won/10 text-status-won">Present</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary hover:underline text-body-sm font-bold flex items-center gap-1 justify-end">
+<span class="material-symbols-outlined text-[16px]" data-icon="map">map</span> View Map
+                                    </button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-6 py-4 text-body-sm font-medium">Oct 17, 2023</td>
+<td class="px-6 py-4 text-body-sm">08:30 AM</td>
+<td class="px-6 py-4 text-body-sm">01:30 PM</td>
+<td class="px-6 py-4 text-body-sm">5h 00m</td>
+<td class="px-6 py-4 text-body-sm text-on-surface-variant truncate max-w-[200px]">DLF Star Mall, Sector 30, Gurgaon</td>
+<td class="px-6 py-4">
+<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-secondary/10 text-secondary">Half-Day</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary hover:underline text-body-sm font-bold flex items-center gap-1 justify-end">
+<span class="material-symbols-outlined text-[16px]" data-icon="map">map</span> View Map
+                                    </button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-6 py-4 text-body-sm font-medium">Oct 16, 2023</td>
+<td class="px-6 py-4 text-body-sm">08:55 AM</td>
+<td class="px-6 py-4 text-body-sm">06:00 PM</td>
+<td class="px-6 py-4 text-body-sm">9h 05m</td>
+<td class="px-6 py-4 text-body-sm text-on-surface-variant truncate max-w-[200px]">Unitech Cyber Park, Sector 39</td>
+<td class="px-6 py-4">
+<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-status-won/10 text-status-won">Present</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary hover:underline text-body-sm font-bold flex items-center gap-1 justify-end">
+<span class="material-symbols-outlined text-[16px]" data-icon="map">map</span> View Map
+                                    </button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-4 border-t border-border-subtle bg-surface-container-low flex items-center justify-between">
+<p class="text-label-md text-on-surface-variant">Showing 5 of 20 results</p>
+<div class="flex gap-2">
+<button class="p-1.5 rounded border border-border-subtle bg-surface-container-lowest text-outline-variant cursor-not-allowed">
+<span class="material-symbols-outlined text-[18px]" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="p-1.5 rounded border border-border-subtle bg-surface-container-lowest hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Micro-interaction script -->
+<script>
+            // Subtle hover effect for the map preview
+            const mapContainer = document.querySelector('[data-location="Gurgaon"]').parentElement;
+            mapContainer.addEventListener('mousemove', (e) => {
+                const { left, top, width, height } = mapContainer.getBoundingClientRect();
+                const x = (e.clientX - left) / width;
+                const y = (e.clientY - top) / height;
+                mapContainer.style.setProperty('--mouse-x', x);
+                mapContainer.style.setProperty('--mouse-y', y);
+            });
+        </script>
+<style>
+            /* Custom Scrollbar */
+            ::-webkit-scrollbar { width: 6px; height: 6px; }
+            ::-webkit-scrollbar-track { background: transparent; }
+            ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+            ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        </style>
+</main>
+</body></html>

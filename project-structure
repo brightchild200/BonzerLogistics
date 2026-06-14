@@ -1,0 +1,78 @@
+logistics_project/
+│
+├── ── FRONTEND (Expo / React Native) ──────────────────────────
+│
+├── app/
+│   ├── _layout.tsx                  # root navigator, auth redirect logic
+│   ├── +not-found.tsx               # 404 screen
+│   ├── (auth)/
+│   │   ├── _layout.tsx              # auth stack navigator
+│   │   ├── login.tsx                # calls POST /api/auth/login → stores JWT
+│   │   └── register.tsx             # (future) new salesperson signup
+│   └── (tabs)/
+│       ├── _layout.tsx              # bottom tab navigator
+│       ├── index.tsx                # dashboard — metrics from /api/leads + /api/attendance
+│       ├── leads.tsx                # GET/POST /api/leads
+│       ├── enquiry.tsx              # GET/POST /api/enquiries
+│       ├── followups.tsx            # GET/POST /api/followups
+│       ├── attendance.tsx           # POST /api/attendance/checkin + checkout
+│       ├── visits.tsx               # map view using LocationIQMap
+│       └── profile.tsx              # user info from JWT payload
+│
+├── components/
+│   ├── Badge.tsx                    # status pill (existing)
+│   ├── EmptyState.tsx               # empty list placeholder (existing)
+│   ├── FormModal.tsx                # reusable modal form (existing)
+│   ├── LocationIQMap.tsx            # map component (existing)
+│   └── MetricCard.tsx               # dashboard stat card (existing)
+│
+├── hooks/
+│   ├── useFrameworkReady.ts         # (existing)
+│   ├── useAuth.ts                   # ← NEW: login(), logout(), token state
+│   ├── useLeads.ts                  # ← NEW: getLeads(), createLead()
+│   ├── useEnquiries.ts              # ← NEW: getEnquiries(), createEnquiry()
+│   ├── useFollowups.ts              # ← NEW: getFollowups(), createFollowup()
+│   └── useAttendance.ts             # ← NEW: checkIn(), checkOut(), history
+│
+├── lib/
+│   ├── supabase.ts                  # (existing) — keep for any direct DB reads
+│   ├── schema.ts                    # (existing) — add API response TS types here
+│   ├── types.ts                     # (existing) — shared type definitions
+│   ├── debugLog.ts                  # (existing)
+│   ├── salesperson-session.ts       # (existing) — store/retrieve JWT here
+│   ├── salesperson-mappers.ts       # (existing)
+│   └── api.ts                       # ← NEW: all fetch() wrappers pointing to backend URL
+│
+├── assets/                          # (existing) images, fonts
+├── app.json                         # Expo config
+├── package.json                     # Expo dependencies
+└── tsconfig.json
+│
+│
+├── ── BACKEND (Node.js + Express) ─────────────────────────────
+│
+└── backend/
+    ├── server.js                    # Express app entry — mounts all routes
+    ├── package.json                 # separate from Expo's package.json
+    ├── vercel.json                  # routes all traffic to server.js (free Vercel deploy)
+    ├── .env                         # secrets — never commit this
+    ├── .env.example                 # template — commit this
+    │
+    ├── routes/
+    │   ├── auth.js                  # POST /api/auth/login → JWT  |  POST /logout
+    │   ├── leads.js                 # GET /api/leads  |  POST  |  PATCH /:id
+    │   ├── enquiries.js             # GET /api/enquiries  |  POST  |  PATCH /:id
+    │   ├── attendance.js            # POST /checkin  |  POST /checkout  |  GET /me
+    │   └── followups.js             # GET /api/followups  |  POST  |  PATCH /:id
+    │
+    ├── middleware/
+    │   ├── auth.js                  # JWT verify — applied to every protected route
+    │   └── errorHandler.js          # central error formatter — always last in server.js
+    │
+    ├── db/
+    │   ├── supabase.js              # createClient() — single instance used by all routes
+    │   └── schema.sql               # your cleaned-up table definitions (reference only)
+    │
+    └── utils/
+        ├── mailer.js                # Nodemailer + Gmail SMTP — sendMail(to, subject, html)
+        └── whatsapp.js              # WhatsApp Business API — sendWhatsApp(to, template)

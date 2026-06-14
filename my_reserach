@@ -81,3 +81,107 @@ What you likely still need beyond the current UI:
 - Reminder generation and a notification log view
 
 If you want, I can turn this into a proper phase-1 schema file next and keep it limited strictly to these six tables.
+
+
+
+
+
+
+
+
+UI Alignment Report
+Date: 2026-06-08
+
+Verdict
+Not fully accomplished.
+
+The app borrows some of the reference design language, especially the blue/slate palette, card-based surfaces, and status badges, but it does not yet match the `stitch_tabler_design_system` UI closely enough to say the design system has been fully applied.
+
+What matches
+- The color direction is broadly aligned: blue primary actions, slate neutrals, soft borders, and light card surfaces are present in the app (`lib/types.ts`).
+- The mobile screens use stacked cards, top bars, and a bottom tab layout, which is directionally similar to the reference mobile screens (`app/(tabs)/index.tsx`, `app/(tabs)/_layout.tsx`).
+- Shared components like metric cards and badges use a clean, utility-style layout that fits the general logistics/admin theme (`components/MetricCard.tsx`, `components/Badge.tsx`).
+
+What does not match
+- The desktop web layout is the biggest mismatch. The reference uses a fixed 260px light sidebar with visible labels and a top search bar, while the app uses an 84px dark icon-only web sidebar with hover labels (`app/(tabs)/_layout.tsx` vs `stitch_tabler_design_system/dashboard_logistics_pro/screen.png`).
+- The reference dashboard is much denser and more Tabler-like, with strong information hierarchy, larger content regions, table sections, and map/GPS panels. The app dashboard is simpler and more “mobile app in a web shell” than “admin dashboard” (`app/(tabs)/index.tsx` vs `stitch_tabler_design_system/dashboard_logistics_pro/screen.png`).
+- The reference uses more structured desktop CRM patterns such as activity timelines, lead tables, detail side panels, and action toolbars. The app screens currently use flatter mobile-style cards and lists instead of those larger desktop modules (`stitch_tabler_design_system/lead_details_logistics_pro/screen.png`, `stitch_tabler_design_system/attendance_logistics_pro/screen.png`).
+- The reference profile screen is a polished settings hub with grouped sections, whereas the app profile screen is more of an editable data form (`app/(tabs)/profile.tsx` vs `stitch_tabler_design_system/mobile_profile_settings_logistics_pro/screen.png`).
+
+Design-system evidence
+- The reference defines a specific design language in `stitch_tabler_design_system/logistics_flow/DESIGN.md`, including:
+  - fixed desktop sidebar
+  - bottom nav on mobile
+  - 260px sidebar width
+  - subtle borders and soft rounding
+  - Tabler-style blue/slate utility palette
+  - GPS/map cards and timeline patterns
+- The reference screenshots show that system consistently across desktop and mobile screens:
+  - `stitch_tabler_design_system/dashboard_logistics_pro/screen.png`
+  - `stitch_tabler_design_system/lead_details_logistics_pro/screen.png`
+  - `stitch_tabler_design_system/attendance_logistics_pro/screen.png`
+  - `stitch_tabler_design_system/mobile_home_screen_logistics_pro/screen.png`
+  - `stitch_tabler_design_system/mobile_leads_list_logistics_pro/screen.png`
+  - `stitch_tabler_design_system/mobile_profile_settings_logistics_pro/screen.png`
+
+Final conclusion
+The UI is partially aligned, but the design system is not yet fully accomplished. The app has the right color family and some component-level resemblance, but the overall structure, density, and desktop/mobile presentation still differ noticeably from the reference design system.
+
+If you want, I can next turn this into a stricter pass/fail checklist against each reference screen.
+
+
+
+
+I’m going to implement these next
+Fix landing page by adding a proper redirect guard in app/_layout.tsx:
+On mount:
+if not logged in → router.replace('/(auth)/login')
+if logged in → router.replace('/(tabs)')
+Update app/(auth)/register.tsx:
+Check if an admin user exists:
+if none → show register page normally
+if exists → only allow users whose users.role === 'admin'
+Redesign app/(auth)/login.tsx based on bonzer_logistics_login_v2.html
+Keep same Supabase login logic.
+Replace UI with:
+dark gradient background
+“glass card”
+orange CTA button
+animated-ish elements (at least road + truck illustration; if you want, we can do real animation later).
+I need one decision before I edit code
+In your Supabase public.users table, does role store values exactly like:
+
+'admin' and 'salesperson'
+OR do you have something else (like 'operator', 'sales_person', etc.)?
+
+If you’re not sure, tell me what values exist for users.role right now (or paste a few rows from public.users). This affects both the admin check and gating.
+
+
+Landing page behavior (unauthenticated users should land on login automatically)
+Register gating logic: allow register when there are no users in DB yet (so first admin can be created), and then switch to admin-only later.
+Full animated/truck/road recreation from the HTML (I only adjusted static styling so far; real animation will need RN Animated/SVG.)
+
+
+
+
+Also let me just give tell you how rest all is working 
+
+the new user has to register from regsiter page by giving the details username , password, rols (admin or sales_person) , fullname , email, pone no. 
+
+then supabase sends an email to authorize the user after clicking on it the user has to login using (either the username or email id) and password
+
+- in case of username the system schecks if their is a reocrdwith this username then call its realted email id and perform authorization 
+
+- while for email id it directly verifies the password and loggs in the user 
+
+
+
+the profile section contains all the details of user like username , role, fllname and all 
+
+
+
+now what poblem we are getting is when user clicks on the check in button on attendance page it says no salesperson linked to this account which is false becoz as i am logged in as sales_person and i can verify that by seeing my role in profle section 
+
+but this issue persists it fails to recognize the user's role . why does that happens ??
+
+I want you to just search and find the root cause of this problem and possible solutiions to fix this issue

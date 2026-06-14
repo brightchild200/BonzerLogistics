@@ -1,40 +1,149 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, Platform, Alert, TextInput, ActivityIndicator } from 'react-native';
-import { ClipboardCheck, MapPin, Clock, LogIn, LogOut, CheckCircle, AlertCircle, Navigation, History } from 'lucide-react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  RefreshControl,
+  Platform,
+  TextInput,
+  ActivityIndicator,
+} from 'react-native';
+import {
+  ClipboardCheck,
+  MapPin,
+  Clock,
+  LogIn,
+  LogOut,
+  CheckCircle,
+  AlertCircle,
+  Navigation,
+  History,
+} from 'lucide-react-native';
+
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { COLORS, type SalesAttendanceRow } from '@/lib/types';
 import { StatusBadge } from '@/components/Badge';
 import { mapSalesAttendance } from '@/lib/salesperson-mappers';
+import LocationIQMap from '@/components/LocationIQMap';
 import { resolveSalespersonSession } from '@/lib/salesperson-session';
+import type { SalesAttendanceInsert } from '@/lib/schema';
 
-async function getLocation(): Promise<{ lat: number; lng: number; accuracy: number | null; address: string }> {
-  return new Promise((resolve) => {
-    if (Platform.OS === 'web' && navigator?.geolocation) {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const TAG = '[AttendanceScreen]';
+
+/** Thin wrapper so every log has the same prefix and is easy to grep. */
+function dbg(event: string, payload?: Record<string, unknown>) {
+  if (__DEV__) {
+    // eslint-disable-next-line no-console
+    console.log(`${TAG} ${event}`, payload ?? '');
+  }
+}
+function warn(event: string, payload?: unknown) {
+  // eslint-disable-next-line no-console
+  console.warn(`${TAG} ${event}`, payload ?? '');
+}
+function err(event: string, payload?: unknown) {
+  // eslint-disable-next-line no-console
+  console.error(`${TAG} ${event}`, payload ?? '');
+}
+
+// ─── GPS ──────────────────────────────────────────────────────────────────────
+
+async function getLocation(): Promise<{
+  lat: number;
+  lng: number;
+  accuracy: number | null;
+  address: string;
+}> {
+  dbg('getLocation → start', { platform: Platform.OS });
+
+  // Web path
+  if (Platform.OS === 'web') {
+    if (!navigator?.geolocation) {
+      warn('getLocation → navigator.geolocation unavailable on web; falling back to (0,0)');
+      return { lat: 0, lng: 0, accuracy: null, address: '' };
+    }
+
+    return new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
-          const {
-            latitude: lat,
-            longitude: lng,
-            accuracy,
-          } = pos.coords;
+          const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+          dbg('getLocation → GPS acquired (web)', { lat, lng, accuracy });
+
           let address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
           try {
-            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, {
-              headers: { 'User-Agent': 'SalesHub/1.0' },
-            });
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+              { headers: { 'User-Agent': 'SalesHub/1.0' } },
+            );
+            if (!res.ok) throw new Error(`Nominatim HTTP ${res.status}`);
             const data = await res.json();
-            if (data.display_name) address = data.display_name.split(',').slice(0, 3).join(', ').trim();
-          } catch {}
+            if (data.display_name) {
+              address = data.display_name.split(',').slice(0, 3).join(', ').trim();
+            }
+            dbg('getLocation → reverse-geocode OK (web)', { address });
+          } catch (geocodeErr) {
+            warn('getLocation → reverse-geocode failed (web); using raw coords', geocodeErr);
+          }
+
           resolve({ lat, lng, accuracy, address });
         },
-        () => resolve({ lat: 0, lng: 0, accuracy: null, address: '' }),
+        (posErr) => {
+          warn('getLocation → geolocation.getCurrentPosition error (web)', {
+            code: posErr.code,
+            message: posErr.message,
+          });
+          resolve({ lat: 0, lng: 0, accuracy: null, address: '' });
+        },
+        { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 },
       );
-    } else {
-      resolve({ lat: 0, lng: 0, accuracy: null, address: '' });
+    });
+  }
+
+  // Native path — requires expo-location installed & permissions granted by the caller.
+  // Importing lazily so the web bundle is unaffected.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const ExpoLocation = require('expo-location') as any;
+
+    const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
+    dbg('getLocation → expo-location permission status (native)', { status });
+
+    if (status !== 'granted') {
+      warn('getLocation → location permission denied (native); falling back to (0,0)');
+      return { lat: 0, lng: 0, accuracy: null, address: '' };
     }
-  });
+
+    const pos = await ExpoLocation.getCurrentPositionAsync({
+      accuracy: ExpoLocation.Accuracy.High,
+    });
+    const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+    dbg('getLocation → GPS acquired (native)', { lat, lng, accuracy });
+
+    // Reverse geocode via Expo
+    let address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    try {
+      const [geo] = await ExpoLocation.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+      if (geo) {
+        address = [geo.street, geo.city, geo.region].filter(Boolean).join(', ');
+        dbg('getLocation → reverse-geocode OK (native)', { address });
+      }
+    } catch (geocodeErr) {
+      warn('getLocation → reverse-geocode failed (native); using raw coords', geocodeErr);
+    }
+
+    return { lat, lng, accuracy: accuracy ?? null, address };
+  } catch (nativeErr) {
+    err('getLocation → expo-location call failed (native); falling back to (0,0)', nativeErr);
+    return { lat: 0, lng: 0, accuracy: null, address: '' };
+  }
 }
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function AttendanceScreen() {
   const [todayRecord, setTodayRecord] = useState<SalesAttendanceRow | null>(null);
@@ -45,164 +154,515 @@ export default function AttendanceScreen() {
   const [error, setError] = useState('');
   const [sessionError, setSessionError] = useState('');
 
-  async function loadData() {
-    const { data: auth } = await supabase.auth.getUser();
-    const session = await resolveSalespersonSession(auth.user?.email ?? null);
+  // ── Data loading ──────────────────────────────────────────────────────────
 
-    if (!session.salesperson) {
-      setSessionError('No salesperson profile is linked to this account yet.');
-      setTodayRecord(null);
-      setHistory([]);
-      return;
+  const loadData = useCallback(async () => {
+    dbg('loadData → start');
+    setError('');
+
+    try {
+      const { data: auth, error: authErr } = await supabase.auth.getUser();
+      if (authErr) {
+        err('loadData → supabase.auth.getUser() failed', authErr);
+        setSessionError('Authentication error. Please sign in again.');
+        return;
+      }
+      dbg('loadData → auth.getUser() OK', { hasUser: !!auth?.user, email: auth?.user?.email });
+
+      const session = await resolveSalespersonSession(auth.user?.email ?? null);
+      dbg('loadData → resolveSalespersonSession()', {
+        hasSalesperson: !!session.salesperson,
+        hasAppUser: !!session.appUser,
+      });
+
+      if (!session.salesperson) {
+        warn('loadData → no salesperson profile linked to this account');
+        setSessionError('No salesperson profile is linked to this account yet.');
+        setTodayRecord(null);
+        setHistory([]);
+        return;
+      }
+
+      setSessionError('');
+
+      // Use ISO date string for today in UTC to match DB values consistently.
+      const today = new Date().toISOString().split('T')[0];
+      dbg('loadData → querying sales_attendance', { today, salespersonId: session.salesperson.id });
+
+      const [todayRes, historyRes] = await Promise.all([
+        supabase
+          .from('sales_attendance')
+          .select('*')
+          .eq('sales_person_id', session.salesperson.id)
+          .eq('attendance_date', today)
+          .maybeSingle(),
+        supabase
+          .from('sales_attendance')
+          .select('*')
+          .eq('sales_person_id', session.salesperson.id)
+          .order('attendance_date', { ascending: false })
+          .limit(14),
+      ]);
+
+      if (todayRes.error) {
+        err('loadData → today query failed', todayRes.error);
+        setError(`Failed to load today's record: ${todayRes.error.message}`);
+      } else {
+        dbg('loadData → today record', { found: !!todayRes.data });
+        setTodayRecord(todayRes.data);
+      }
+
+      if (historyRes.error) {
+        err('loadData → history query failed', historyRes.error);
+        setError(`Failed to load attendance history: ${historyRes.error.message}`);
+      } else {
+        const filtered = (historyRes.data ?? []).filter((row) => row.attendance_date !== today);
+        dbg('loadData → history records', { total: historyRes.data?.length, afterFilter: filtered.length });
+        setHistory(filtered);
+      }
+
+      dbg('loadData → complete');
+    } catch (e: unknown) {
+      err('loadData → unexpected exception', e);
+      setError('Failed to load attendance data. Please pull down to refresh.');
     }
-
-    setSessionError('');
-    const today = new Date().toISOString().split('T')[0];
-    const [todayRes, historyRes] = await Promise.all([
-      supabase.from('sales_attendance').select('*').eq('sales_person_id', session.salesperson.id).eq('attendance_date', today).maybeSingle(),
-      supabase.from('sales_attendance').select('*').eq('sales_person_id', session.salesperson.id).order('attendance_date', { ascending: false }).limit(14),
-    ]);
-
-    setTodayRecord(todayRes.data);
-    setHistory((historyRes.data || []).filter((row) => row.attendance_date !== today));
-  }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, []),
+    }, [loadData]),
   );
 
+  // ── Check In ──────────────────────────────────────────────────────────────
+
   async function handleCheckIn() {
+    dbg('handleCheckIn → start', {
+      loading,
+      notesLength: notes.length,
+      existingTodayRecordId: todayRecord?.id ?? null,
+    });
+
     setError('');
     setLoading(true);
-    const { data: auth } = await supabase.auth.getUser();
-    const session = await resolveSalespersonSession(auth.user?.email ?? null);
-    if (!session.salesperson) {
-      setLoading(false);
-      setError('No salesperson record found for this account.');
-      return;
-    }
 
-    const { lat, lng, accuracy, address } = await getLocation();
-    const today = new Date().toISOString().split('T')[0];
-    const { error: insertError } = await supabase.from('sales_attendance').insert({
-      sales_person_id: session.salesperson.id,
-      user_id: session.appUser?.id ?? null,
-      attendance_date: today,
-      check_in_at: new Date().toISOString(),
-      check_in_lat: lat,
-      check_in_lng: lng,
-      check_in_accuracy_meters: accuracy,
-      site_name: address ? address.split(',')[0] : null,
-      site_address: address || null,
-      notes: notes.trim() || null,
-      status: 'checked_in',
-      approval_status: 'pending',
-      device_info: Platform.OS,
-    } as any);
-    setLoading(false);
-    if (insertError) {
-      setError(insertError.message);
-      return;
+    try {
+      const { data: auth, error: authErr } = await supabase.auth.getUser();
+      dbg('handleCheckIn → auth.getUser()', { hasUser: !!auth?.user, authErr: authErr ?? null });
+
+      if (authErr) {
+        err('handleCheckIn → supabase.auth.getUser() failed', authErr);
+        setError('Authentication error. Please sign out and sign in again.');
+        return;
+      }
+
+      const session = await resolveSalespersonSession(auth.user?.email ?? null);
+      dbg('handleCheckIn → resolveSalespersonSession()', {
+        hasSalesperson: !!session.salesperson,
+        salespersonId: session.salesperson?.id ?? null,
+        hasAppUser: !!session.appUser,
+      });
+
+      if (!session.salesperson) {
+        warn('handleCheckIn → abort: no salesperson in session');
+        setError('No salesperson record found for this account.');
+        return;
+      }
+
+      dbg('handleCheckIn → fetching GPS location...');
+      const { lat, lng, accuracy, address } = await getLocation();
+      dbg('handleCheckIn → GPS resolved', {
+        lat,
+        lng,
+        accuracy,
+        addressPreview: address ? address.slice(0, 80) : '(empty)',
+        usingFallback: lat === 0 && lng === 0,
+      });
+
+      if (lat === 0 && lng === 0) {
+        warn('handleCheckIn → GPS returned (0,0) — location unavailable; proceeding without coordinates');
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      const checkInAt = new Date().toISOString();
+
+      const payload: SalesAttendanceInsert = {
+        sales_person_id: session.salesperson.id,
+        user_id: session.appUser?.id ?? null,
+        attendance_date: today,
+        check_in_at: checkInAt,
+        check_in_lat: lat,
+        check_in_lng: lng,
+        check_in_accuracy_meters: accuracy,
+        site_name: address ? address.split(',')[0].trim() : null,
+        site_address: address || null,
+        notes: notes.trim() || null,
+        status: 'checked_in',
+        approval_status: 'pending',
+        device_info: Platform.OS,
+      } as Record<string, unknown>;
+
+      dbg('handleCheckIn → inserting sales_attendance row', {
+        attendance_date: payload.attendance_date,
+        sales_person_id: payload.sales_person_id,
+        check_in_at: payload.check_in_at,
+        notesIncluded: !!payload.notes,
+      });
+
+      const { error: insertError, data: inserted } = await supabase
+        .from('sales_attendance')
+        .insert(payload)
+        .select()
+        .maybeSingle();
+
+      if (insertError) {
+        err('handleCheckIn → insert failed', {
+          code: insertError.code,
+          message: insertError.message,
+          details: insertError.details,
+          hint: insertError.hint,
+        });
+        setError(`Check In failed: ${insertError.message}`);
+        return;
+      }
+
+      dbg('handleCheckIn → insert OK', { insertedId: (inserted as { id?: string })?.id ?? null });
+      setNotes('');
+      await loadData();
+      dbg('handleCheckIn → complete');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      err('handleCheckIn → unexpected exception', e);
+      setError(`Check In failed unexpectedly: ${msg}`);
+    } finally {
+      setLoading(false);
     }
-    setNotes('');
-    loadData();
   }
+
+  // ── Check Out ─────────────────────────────────────────────────────────────
 
   async function handleCheckOut() {
-    if (!todayRecord) return;
-    setError('');
-    setLoading(true);
-    const { lat, lng, accuracy } = await getLocation();
-    const { error: updateError } = await supabase
-      .from('sales_attendance')
-      .update({
-        check_out_at: new Date().toISOString(),
-        check_out_lat: lat,
-        check_out_lng: lng,
-        check_out_accuracy_meters: accuracy,
-        status: 'checked_out',
-      })
-      .eq('id', todayRecord.id);
-    setLoading(false);
-    if (updateError) {
-      setError(updateError.message);
+    if (!todayRecord) {
+      warn('handleCheckOut → called with no todayRecord; ignoring');
       return;
     }
-    loadData();
+
+    dbg('handleCheckOut → start', { recordId: todayRecord.id });
+    setError('');
+    setLoading(true);
+
+    try {
+      dbg('handleCheckOut → fetching GPS location...');
+      const { lat, lng, accuracy } = await getLocation();
+      dbg('handleCheckOut → GPS resolved', {
+        lat,
+        lng,
+        accuracy,
+        usingFallback: lat === 0 && lng === 0,
+      });
+
+      if (lat === 0 && lng === 0) {
+        warn('handleCheckOut → GPS returned (0,0); proceeding without checkout coordinates');
+      }
+
+      const checkOutAt = new Date().toISOString();
+      dbg('handleCheckOut → updating sales_attendance row', {
+        id: todayRecord.id,
+        check_out_at: checkOutAt,
+      });
+
+      const { error: updateError } = await supabase
+        .from('sales_attendance')
+        .update({
+          check_out_at: checkOutAt,
+          check_out_lat: lat,
+          check_out_lng: lng,
+          check_out_accuracy_meters: accuracy,
+          status: 'checked_out',
+        })
+        .eq('id', todayRecord.id);
+
+      if (updateError) {
+        err('handleCheckOut → update failed', {
+          code: updateError.code,
+          message: updateError.message,
+          details: updateError.details,
+          hint: updateError.hint,
+        });
+        setError(`Check Out failed: ${updateError.message}`);
+        return;
+      }
+
+      dbg('handleCheckOut → update OK; reloading data...');
+      await loadData();
+      dbg('handleCheckOut → complete');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      err('handleCheckOut → unexpected exception', e);
+      setError(`Check Out failed unexpectedly: ${msg}`);
+    } finally {
+      setLoading(false);
+    }
   }
 
+  // ── Refresh ───────────────────────────────────────────────────────────────
+
   async function onRefresh() {
+    dbg('onRefresh → start');
     setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
+    try {
+      await loadData();
+      dbg('onRefresh → complete');
+    } catch (e: unknown) {
+      err('onRefresh → loadData threw during pull-to-refresh', e);
+      setError('Refresh failed. Please try again.');
+    } finally {
+      setRefreshing(false);
+    }
   }
+
+  // ── Derived state ─────────────────────────────────────────────────────────
 
   const isCheckedIn = !!todayRecord?.check_in_at;
   const isCheckedOut = !!todayRecord?.check_out_at;
+
+  const locationIqKey = process.env.EXPO_PUBLIC_LOCATIONIQ_KEY as string | undefined;
+  const checkInLat = todayRecord?.check_in_lat ?? 0;
+  const checkInLng = todayRecord?.check_in_lng ?? 0;
+  const checkOutLat = todayRecord?.check_out_lat ?? 0;
+  const checkOutLng = todayRecord?.check_out_lng ?? 0;
+
   const statusColor = isCheckedOut ? COLORS.success : isCheckedIn ? COLORS.primary : COLORS.textMuted;
   const todayCard = todayRecord ? mapSalesAttendance(todayRecord) : null;
+  const attendanceRows = useMemo(
+    () => [todayRecord, ...history].filter((row): row is SalesAttendanceRow => !!row),
+    [todayRecord, history],
+  );
+  const tableRows = attendanceRows.slice(0, 10);
+  const weekRecords = history.slice(0, 7);
+  const presentCount = history.filter((item) => !!item.check_in_at).length;
+  const totalHours = history.reduce((sum, item) => {
+    if (!item.check_in_at || !item.check_out_at) return sum;
+    const start = new Date(item.check_in_at).getTime();
+    const end = new Date(item.check_out_at).getTime();
+    return sum + Math.max(0, end - start) / 3_600_000;
+  }, 0);
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <View style={styles.screen}>
       <View style={styles.topbar}>
         <View>
           <Text style={styles.pageTitle}>Attendance</Text>
-          <Text style={styles.pageDate}>{new Date().toLocaleDateString()}</Text>
+          <Text style={styles.pageDate}>Track field executive check-ins and location history.</Text>
         </View>
         <View style={[styles.statusChip, { backgroundColor: statusColor + '18' }]}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-          <Text style={[styles.statusChipText, { color: statusColor }]}>{isCheckedOut ? 'Complete' : isCheckedIn ? 'Checked in' : 'Not in'}</Text>
+          <Text style={[styles.statusChipText, { color: statusColor }]}>
+            {isCheckedOut ? 'Complete' : isCheckedIn ? 'Checked in' : 'Not in'}
+          </Text>
         </View>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
-        <View style={styles.actionCard}>
-          <View style={styles.clockDisplay}>
-            <Clock size={20} color={COLORS.textMuted} />
-            <Text style={styles.clockText}>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
+        }
+      >
+        <View style={styles.heroWrap}>
+          {/* ── Action card ── */}
+          <View style={styles.actionCard}>
+            <View style={styles.currentStatusRow}>
+              <View
+                style={[
+                  styles.liveDot,
+                  {
+                    backgroundColor: isCheckedOut
+                      ? COLORS.success
+                      : isCheckedIn
+                        ? COLORS.success
+                        : COLORS.warning,
+                  },
+                ]}
+              />
+              <Text style={styles.currentStatusLabel}>Current Status</Text>
+            </View>
+
+            <Text style={styles.heroTitle}>
+              {isCheckedOut ? 'Shift Complete' : isCheckedIn ? 'Active Shift' : 'Ready to Check In'}
+            </Text>
+            <Text style={styles.heroSub}>
+              {todayCard?.detail ?? 'No attendance event has been captured for today yet.'}
+            </Text>
+
+            <View style={styles.locationCard}>
+              <MapPin size={18} color={COLORS.primary} />
+              <View style={styles.locationCopy}>
+                <Text style={styles.locationLabel}>Live Location Address</Text>
+                <Text style={styles.locationValue}>
+                  {todayCard?.subtitle ?? 'Location will appear after GPS capture.'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.metaRow}>
+              <View style={styles.metaBlock}>
+                <Text style={styles.metaLabel}>Date</Text>
+                <Text style={styles.metaValue}>{new Date().toLocaleDateString()}</Text>
+              </View>
+              <View style={styles.metaBlock}>
+                <Text style={styles.metaLabel}>Time</Text>
+                <Text style={styles.metaValue}>
+                  {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </View>
+            </View>
+
+            {/* Session error (account config issue) */}
+            {sessionError ? (
+              <View style={styles.errorBox}>
+                <AlertCircle size={14} color={COLORS.danger} />
+                <Text style={styles.errorText}>{sessionError}</Text>
+              </View>
+            ) : null}
+
+            {/* Action / runtime error */}
+            {error ? (
+              <View style={styles.errorBox}>
+                <AlertCircle size={14} color={COLORS.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            {/* CTA section */}
+            {!isCheckedIn ? (
+              <>
+                <TextInput
+                  style={styles.notesInput}
+                  value={notes}
+                  onChangeText={setNotes}
+                  placeholder="Add check-in notes (optional)..."
+                  placeholderTextColor={COLORS.textLight}
+                  multiline
+                  numberOfLines={2}
+                />
+                <TouchableOpacity
+                  style={[styles.checkBtn, styles.checkInBtn, (loading || !!sessionError) && styles.disabled]}
+                  onPress={handleCheckIn}
+                  disabled={loading || !!sessionError}
+                  accessibilityRole="button"
+                  accessibilityLabel="Check In"
+                >
+                  {loading ? (
+                    <ActivityIndicator color={COLORS.white} size="small" />
+                  ) : (
+                    <LogIn size={20} color={COLORS.white} />
+                  )}
+                  <Text style={styles.checkBtnText}>{loading ? 'Checking in…' : 'Check In'}</Text>
+                </TouchableOpacity>
+              </>
+            ) : isCheckedOut ? (
+              <View style={styles.completedView}>
+                <CheckCircle size={40} color={COLORS.success} />
+                <Text style={styles.completedTitle}>Day complete</Text>
+              </View>
+            ) : (
+              <View style={styles.actionRow}>
+                <TouchableOpacity
+                  style={[styles.checkBtn, styles.checkBtnMuted, styles.disabled]}
+                  disabled
+                  accessibilityRole="button"
+                  accessibilityLabel="Check In (already checked in)"
+                >
+                  <LogIn size={20} color={COLORS.textLight} />
+                  <Text style={styles.checkBtnTextMuted}>Check In</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.checkBtn, styles.checkOutBtn, loading && styles.disabled]}
+                  onPress={handleCheckOut}
+                  disabled={loading}
+                  accessibilityRole="button"
+                  accessibilityLabel="Check Out"
+                >
+                  {loading ? (
+                    <ActivityIndicator color={COLORS.white} size="small" />
+                  ) : (
+                    <LogOut size={20} color={COLORS.white} />
+                  )}
+                  <Text style={styles.checkBtnText}>{loading ? 'Checking out…' : 'Check Out'}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <View style={styles.gpsHint}>
+              <Navigation size={12} color={COLORS.textLight} />
+              <Text style={styles.gpsHintText}>GPS coordinates will be stored in the attendance row</Text>
+            </View>
           </View>
 
-          {sessionError ? (
-            <View style={styles.errorBox}>
-              <AlertCircle size={14} color={COLORS.danger} />
-              <Text style={styles.errorText}>{sessionError}</Text>
+          {/* ── Map card ── */}
+          <View style={styles.mapCard}>
+            <View style={styles.mapGlow} />
+            <View style={styles.mapPinBadge}>
+              <MapPin size={18} color={COLORS.primary} />
             </View>
-          ) : null}
 
-          {error ? (
-            <View style={styles.errorBox}>
-              <AlertCircle size={14} color={COLORS.danger} />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
+            {isCheckedOut ? (
+              <LocationIQMap lat={checkOutLat} lng={checkOutLng} apiKey={locationIqKey ?? ''} height={300} />
+            ) : isCheckedIn ? (
+              <LocationIQMap lat={checkInLat} lng={checkInLng} apiKey={locationIqKey ?? ''} height={300} />
+            ) : (
+              <View style={styles.mapEmpty} />
+            )}
 
-          {!isCheckedIn ? (
-            <>
-              <TextInput style={styles.notesInput} value={notes} onChangeText={setNotes} placeholder="Add check-in notes (optional)..." placeholderTextColor={COLORS.textLight} multiline numberOfLines={2} />
-              <TouchableOpacity style={[styles.checkBtn, styles.checkInBtn, loading && styles.disabled]} onPress={handleCheckIn} disabled={loading || !!sessionError}>
-                {loading ? <ActivityIndicator color={COLORS.white} size="small" /> : <LogIn size={20} color={COLORS.white} />}
-                <Text style={styles.checkBtnText}>{loading ? 'Checking in...' : 'Check In'}</Text>
-              </TouchableOpacity>
-              <View style={styles.gpsHint}>
-                <Navigation size={12} color={COLORS.textLight} />
-                <Text style={styles.gpsHintText}>GPS coordinates will be stored in the attendance row</Text>
-              </View>
-            </>
-          ) : isCheckedOut ? (
-            <View style={styles.completedView}>
-              <CheckCircle size={40} color={COLORS.success} />
-              <Text style={styles.completedTitle}>Day complete</Text>
+            <View style={styles.mapFooter}>
+              <Text style={styles.mapFooterTitle}>GPS Tracking</Text>
+              <Text style={styles.mapFooterSub}>
+                {isCheckedOut
+                  ? 'Check-out location captured.'
+                  : isCheckedIn
+                    ? todayRecord?.site_address ?? 'Check-in location captured.'
+                    : 'Capture GPS by pressing Check In.'}
+              </Text>
             </View>
-          ) : (
-            <TouchableOpacity style={[styles.checkBtn, styles.checkOutBtn, loading && styles.disabled]} onPress={handleCheckOut} disabled={loading}>
-              {loading ? <ActivityIndicator color={COLORS.white} size="small" /> : <LogOut size={20} color={COLORS.white} />}
-              <Text style={styles.checkBtnText}>{loading ? 'Checking out...' : 'Check Out'}</Text>
-            </TouchableOpacity>
-          )}
+          </View>
         </View>
 
+        {/* ── Metrics grid ── */}
+        <View style={styles.metricsGrid}>
+          <View style={styles.metricCard}>
+            <View>
+              <Text style={styles.metricLabel}>Total Work Hours</Text>
+              <Text style={styles.metricValue}>{totalHours.toFixed(1)} hrs</Text>
+            </View>
+            <View style={styles.metricIconWrap}>
+              <Clock size={20} color={COLORS.primary} />
+            </View>
+          </View>
+          <View style={styles.metricCard}>
+            <View>
+              <Text style={styles.metricLabel}>Days Present</Text>
+              <Text style={[styles.metricValue, styles.metricValueSuccess]}>{presentCount}</Text>
+            </View>
+            <View style={[styles.metricIconWrap, styles.metricIconWrapSuccess]}>
+              <CheckCircle size={20} color={COLORS.success} />
+            </View>
+          </View>
+          <View style={styles.metricCard}>
+            <View>
+              <Text style={styles.metricLabel}>Recent Records</Text>
+              <Text style={styles.metricValue}>{weekRecords.length}</Text>
+            </View>
+            <View style={[styles.metricIconWrap, styles.metricIconWrapWarning]}>
+              <History size={20} color={COLORS.warning} />
+            </View>
+          </View>
+        </View>
+
+        {/* ── Today's record ── */}
         {todayCard ? (
           <>
             <Text style={styles.sectionTitle}>Today&apos;s Record</Text>
@@ -217,37 +677,84 @@ export default function AttendanceScreen() {
           </>
         ) : null}
 
-        <Text style={styles.sectionTitle}>Recent History</Text>
-        {history.length === 0 ? (
+        {/* ── History ── */}
+        <View style={styles.historyHeader}>
+           <Text style={styles.sectionTitle}>Attendance History</Text>
+            <Text style={styles.historyHeaderSub}>Latest live records pulled from Supabase</Text>
+        </View>
+        {tableRows.length === 0 ? (
           <View style={styles.emptyCard}>
             <History size={32} color={COLORS.textLight} />
-            <Text style={styles.emptyText}>No previous attendance records</Text>
+            <Text style={styles.emptyText}>No attendance history found for this salesperson</Text>
           </View>
         ) : (
           <View style={styles.historyCard}>
-            {history.map((rec, idx) => {
-              const card = mapSalesAttendance(rec);
-              return (
-                <View key={rec.id} style={[styles.historyRow, idx > 0 && styles.historyBorder]}>
-                  <View style={styles.historyLeft}>
-                    <Text style={styles.historyDateText}>{new Date(rec.attendance_date).toLocaleDateString()}</Text>
-                    <Text style={styles.historyTimes}>
-                      {rec.check_in_at ? new Date(rec.check_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'No check-in'}
-                      {' • '}
-                      {rec.check_out_at ? new Date(rec.check_out_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Open'}
-                    </Text>
-                  </View>
-                  <StatusBadge status={card.statusLabel} />
+            
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.tableShell}>
+                <View style={styles.tableHeaderRow}>
+                  <Text style={[styles.tableHeaderCell, styles.colDate]}>Date</Text>
+                  <Text style={[styles.tableHeaderCell, styles.colCheckIn]}>Check-In</Text>
+                  <Text style={[styles.tableHeaderCell, styles.colCheckOut]}>Check-Out</Text>
+                  <Text style={[styles.tableHeaderCell, styles.colDuration]}>Duration</Text>
+                  <Text style={[styles.tableHeaderCell, styles.colLocation]}>Location (Address)</Text>
+                  <Text style={[styles.tableHeaderCell, styles.colStatus]}>Status</Text>
+                  <Text style={[styles.tableHeaderCell, styles.colAction, styles.alignRight]}>Action</Text>
                 </View>
-              );
-            })}
+                {tableRows.map((rec, idx) => {
+                  const card = mapSalesAttendance(rec);
+                  const checkInLabel = rec.check_in_at
+                    ? new Date(rec.check_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : '—';
+                  const checkOutLabel = rec.check_out_at
+                    ? new Date(rec.check_out_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : rec.check_in_at
+                      ? 'Active'
+                      : '—';
+                  const durationLabel = rec.check_in_at && rec.check_out_at
+                    ? `${Math.max(
+                        0,
+                        (new Date(rec.check_out_at).getTime() - new Date(rec.check_in_at).getTime()) /
+                          3_600_000,
+                      ).toFixed(1)}h`
+                    : rec.check_in_at
+                      ? 'Running'
+                      : '—';
+                  const locationLabel = rec.site_address || rec.site_name || 'Location not captured';
+
+                return (
+                
+                    <View key={rec.id} style={[styles.tableRow, idx > 0 && styles.tableRowBorder]}>
+                      <Text style={[styles.tableCell, styles.colDate]}>{new Date(rec.attendance_date).toLocaleDateString()}</Text>
+                      <Text style={[styles.tableCell, styles.colCheckIn]}>{checkInLabel}</Text>
+                      <Text style={[styles.tableCell, styles.colCheckOut, !rec.check_out_at && styles.mutedCell]}>{checkOutLabel}</Text>
+                      <Text style={[styles.tableCell, styles.colDuration]}>{durationLabel}</Text>
+                      <Text style={[styles.tableCell, styles.colLocation]} numberOfLines={1}>
+                        {locationLabel}
+                      </Text>
+                  
+                      <View style={[styles.colStatus, styles.statusCell]}>
+                        <StatusBadge status={card.statusLabel} />
+                      </View>
+                      <TouchableOpacity style={[styles.actionPill, styles.colAction]} accessibilityRole="button">
+                        <Text style={styles.actionPillText}>View Map</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
+           
           </View>
         )}
+
         <View style={{ height: 24 }} />
       </ScrollView>
     </View>
   );
 }
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
@@ -262,29 +769,207 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
     paddingTop: Platform.OS === 'web' ? 14 : 50,
   },
-  pageTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text },
-  pageDate: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  statusChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
+  pageTitle: { fontSize: 24, fontWeight: '800', color: COLORS.text },
+  pageDate: { fontSize: 13, color: COLORS.textMuted, marginTop: 4, maxWidth: 520 },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
   statusDot: { width: 7, height: 7, borderRadius: 4 },
   statusChipText: { fontSize: 12, fontWeight: '600' },
   scroll: { flex: 1 },
-  content: { padding: 16 },
-  actionCard: { backgroundColor: COLORS.card, borderRadius: 12, padding: 20, borderWidth: 1, borderColor: COLORS.border, marginBottom: 20 },
-  clockDisplay: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
-  clockText: { fontSize: 16, fontWeight: '600', color: COLORS.text },
-  errorBox: { flexDirection: 'row', gap: 8, backgroundColor: COLORS.dangerLight, borderRadius: 6, padding: 10, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: COLORS.danger },
+  content: { padding: 16, gap: 16 },
+  heroWrap: { flexDirection: Platform.OS === 'web' ? 'row' : 'column', gap: 16 },
+  actionCard: {
+    flex: 1.65,
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 14,
+  },
+  currentStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  liveDot: { width: 10, height: 10, borderRadius: 5 },
+  currentStatusLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  heroTitle: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: 0 },
+  heroSub: { fontSize: 14, lineHeight: 20, color: COLORS.textMuted },
+  locationCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    borderRadius: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.gray50,
+  },
+  locationCopy: { flex: 1, gap: 4 },
+  locationLabel: {
+    fontSize: 11,
+    color: COLORS.textLight,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    fontWeight: '700',
+  },
+  locationValue: { fontSize: 13, lineHeight: 19, color: COLORS.text, fontWeight: '600' },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  metaBlock: { minWidth: 120, gap: 4 },
+  metaLabel: {
+    fontSize: 11,
+    color: COLORS.textLight,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    fontWeight: '700',
+  },
+  metaValue: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
+  errorBox: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: COLORS.dangerLight,
+    borderRadius: 6,
+    padding: 10,
+    marginBottom: 4,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.danger,
+  },
   errorText: { fontSize: 13, color: COLORS.danger, flex: 1 },
-  notesInput: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 6, padding: 10, fontSize: 14, color: COLORS.text, height: 60, textAlignVertical: 'top', marginBottom: 14 },
-  checkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 52, borderRadius: 10 },
+  notesInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 14,
+    color: COLORS.text,
+    height: 60,
+    textAlignVertical: 'top',
+    backgroundColor: COLORS.white,
+  },
+  // actionRow needs both buttons to fill equal width
+  actionRow: { flexDirection: 'row', gap: 12 },
+  checkBtn: {
+    flex: 1, // ← fixed: both buttons now share equal width inside actionRow
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    height: 52,
+    borderRadius: 10,
+  },
   checkInBtn: { backgroundColor: COLORS.primary },
   checkOutBtn: { backgroundColor: COLORS.danger },
+  checkBtnMuted: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.gray50,
+  },
   disabled: { opacity: 0.7 },
   checkBtnText: { fontSize: 16, fontWeight: '700', color: COLORS.white },
-  gpsHint: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10, justifyContent: 'center' },
+  checkBtnTextMuted: { fontSize: 16, fontWeight: '700', color: COLORS.textLight },
+  gpsHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 10,
+    justifyContent: 'center',
+  },
   gpsHintText: { fontSize: 11, color: COLORS.textLight, textAlign: 'center' },
   completedView: { alignItems: 'center', gap: 12, paddingVertical: 8 },
   completedTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: COLORS.text, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  mapCard: {
+    flex: 1,
+    minHeight: 300,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: '#dbeafe',
+    justifyContent: 'flex-end',
+  },
+  mapEmpty: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 64,
+    backgroundColor: '#dbeafe',
+  },
+  mapGlow: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.08)',
+  },
+  mapPinBadge: {
+    position: 'absolute',
+    top: '42%',
+    left: '50%',
+    marginLeft: -24,
+    marginTop: -24,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  mapFooter: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  mapFooterTitle: { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  mapFooterSub: { marginTop: 2, fontSize: 12, color: COLORS.textMuted },
+  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  metricCard: {
+    flexGrow: 1,
+    flexBasis: 220,
+    minWidth: 220,
+    borderRadius: 12,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  metricLabel: { fontSize: 12, color: COLORS.textMuted, marginBottom: 4 },
+  metricValue: { fontSize: 24, fontWeight: '800', color: COLORS.text },
+  metricValueSuccess: { color: COLORS.success },
+  metricIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metricIconWrapSuccess: { backgroundColor: COLORS.successLight },
+  metricIconWrapWarning: { backgroundColor: COLORS.warningLight },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
   summaryCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -301,12 +986,57 @@ const styles = StyleSheet.create({
   summaryTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
   summarySub: { fontSize: 12, color: COLORS.textMuted },
   summaryMeta: { fontSize: 11, color: COLORS.textLight },
-  emptyCard: { backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', padding: 32, gap: 10 },
+    historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 },
+  historyHeaderSub: { marginTop: 2, fontSize: 12, color: COLORS.textMuted },
+  historyHeaderMeta: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
+  emptyCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    padding: 32,
+    gap: 10,
+  },
   emptyText: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center' },
   historyCard: { backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border },
-  historyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, gap: 12 },
-  historyBorder: { borderTopWidth: 1, borderTopColor: COLORS.border },
-  historyLeft: { flex: 1, gap: 4 },
-  historyDateText: { fontSize: 13, fontWeight: '700', color: COLORS.text },
-  historyTimes: { fontSize: 12, color: COLORS.textMuted },
+  tableShell: { minWidth: 1020, flex: 1 },
+  tableHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.gray50,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  tableHeaderCell: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tableRow: { flexDirection: 'row', alignItems: 'center', minHeight: 62 },
+  tableRowBorder: { borderTopWidth: 1, borderTopColor: COLORS.border },
+  tableCell: { paddingHorizontal: 14, paddingVertical: 16, fontSize: 13, color: COLORS.text, fontWeight: '600' },
+  colDate: { width: 130 },
+  colCheckIn: { width: 120 },
+  colCheckOut: { width: 120 },
+  colDuration: { width: 100 },
+  colLocation: { width: 320 },
+  colStatus: { width: 160 },
+  colAction: { width: 120 },
+  alignRight: { textAlign: 'right' },
+  statusCell: { alignItems: 'flex-start', justifyContent: 'center' },
+  actionPill: {
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: COLORS.primaryLight,
+  },
+  actionPillText: { fontSize: 12, fontWeight: '800', color: COLORS.primaryDark },
+  mutedCell: { color: COLORS.textLight, fontStyle: 'italic' },
 });
+ 

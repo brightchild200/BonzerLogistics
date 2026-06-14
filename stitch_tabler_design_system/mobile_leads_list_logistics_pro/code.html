@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Logistics Flow - Leads List</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-container": "#eceef1",
+                      "on-primary-container": "#e7edff",
+                      "slate-text": "#475569",
+                      "secondary-fixed-dim": "#99cbff",
+                      "surface-container-highest": "#e0e3e6",
+                      "primary-fixed": "#d6e3ff",
+                      "secondary-fixed": "#cfe5ff",
+                      "on-error-container": "#93000a",
+                      "tertiary-fixed": "#d8e2fd",
+                      "surface": "#f7f9fc",
+                      "inverse-surface": "#2d3133",
+                      "on-secondary-fixed": "#001d34",
+                      "primary-fixed-dim": "#a8c8ff",
+                      "on-primary-fixed-variant": "#00468b",
+                      "on-tertiary-container": "#e8edff",
+                      "outline": "#727783",
+                      "on-surface-variant": "#424752",
+                      "on-secondary-fixed-variant": "#004a78",
+                      "inverse-on-surface": "#eff1f4",
+                      "tertiary-container": "#616b82",
+                      "tertiary-fixed-dim": "#bcc6e1",
+                      "on-tertiary": "#ffffff",
+                      "on-secondary-container": "#004470",
+                      "on-surface": "#191c1e",
+                      "surface-tint": "#005db5",
+                      "on-secondary": "#ffffff",
+                      "on-primary": "#ffffff",
+                      "background": "#f7f9fc",
+                      "error-container": "#ffdad6",
+                      "primary": "#0052a1",
+                      "on-error": "#ffffff",
+                      "error": "#ba1a1a",
+                      "surface-variant": "#e0e3e6",
+                      "status-followup": "#F59E0B",
+                      "inverse-primary": "#a8c8ff",
+                      "surface-dim": "#d8dadd",
+                      "on-primary-fixed": "#001b3d",
+                      "surface-container-high": "#e6e8eb",
+                      "tertiary": "#495369",
+                      "surface-container-lowest": "#ffffff",
+                      "secondary-container": "#61b4fd",
+                      "surface-container-low": "#f2f4f7",
+                      "status-lost": "#EF4444",
+                      "status-contacted": "#6366F1",
+                      "on-background": "#191c1e",
+                      "secondary": "#00629d",
+                      "status-won": "#10B981",
+                      "on-tertiary-fixed-variant": "#3d475c",
+                      "outline-variant": "#c2c6d4",
+                      "surface-bright": "#f7f9fc",
+                      "primary-container": "#206bc4",
+                      "on-tertiary-fixed": "#111b2f",
+                      "status-new": "#206BC4",
+                      "border-subtle": "#E2E8F0"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "stack-sm": "0.5rem",
+                      "stack-md": "1rem",
+                      "gutter": "1.5rem",
+                      "stack-lg": "2rem",
+                      "sidebar-width": "260px",
+                      "container-padding": "2rem"
+              },
+              "fontFamily": {
+                      "mono-data": ["Inter"],
+                      "headline-lg": ["Inter"],
+                      "label-md": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "body-sm": ["Inter"],
+                      "headline-sm": ["Inter"],
+                      "body-md": ["Inter"],
+                      "label-caps": ["Inter"]
+              },
+              "fontSize": {
+                      "mono-data": ["13px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+                      "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                      "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                      "headline-sm": ["18px", {"lineHeight": "26px", "fontWeight": "600"}],
+                      "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        body {
+            background-color: #f7f9fc;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-md text-on-surface antialiased">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface dark:bg-on-background border-b border-border-subtle dark:border-outline-variant flex justify-between items-center h-16 px-4 md:px-container-padding">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed" data-icon="local_shipping">local_shipping</span>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed">Leads</h1>
+</div>
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors active:opacity-80">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="search">search</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant">
+<img alt="Profile" data-alt="A professional headshot of a logistics executive in a modern, brightly lit office environment. The subject wears a clean navy blazer and has a confident, approachable expression. The background features blurred architectural lines of glass and steel, echoing a high-end corporate aesthetic with a cool blue and slate color palette." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDFWs7qUc8nvw7IMPfK97YAjG1nh5sFDkimYBn-cAEf-m88ynowB1_WCxPa59sPPCelFGkFSLph4w51ol4pG6-mNplXLEGnBBjp5sCzgKM-9-MJv1WAjEnNpneW47wJDcVk_e1Hd6iiJGbb2-5_e9UH4GbTxHT5eLGIQgM2Vn24M7wQZw4gRtw4lBZP2SThEiSkXRVovyMUIvGleaSobYNxeWweMAQEMqpZSdCZl3gIK0H8AjtMm33ujZvleb_NfAJqTgIqQEkT9KI"/>
+</div>
+</div>
+</header>
+<main class="pt-16 pb-24 min-h-screen">
+<!-- Search & Filter Area -->
+<div class="px-4 mt-4 mb-2">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline" data-icon="search">search</span>
+<input class="w-full h-11 pl-10 pr-4 bg-surface-container-lowest border border-border-subtle rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-body-md outline-none" placeholder="Search leads, companies..." type="text"/>
+</div>
+</div>
+<!-- Status Filters (Horizontal Scroll) -->
+<div class="flex overflow-x-auto gap-2 px-4 py-3 hide-scrollbar">
+<button class="flex-none px-5 py-2 rounded-full bg-primary text-on-primary text-label-md font-medium shadow-sm">All</button>
+<button class="flex-none px-5 py-2 rounded-full bg-surface-container-low text-on-surface-variant border border-border-subtle text-label-md font-medium hover:bg-surface-container-high transition-colors">New</button>
+<button class="flex-none px-5 py-2 rounded-full bg-surface-container-low text-on-surface-variant border border-border-subtle text-label-md font-medium hover:bg-surface-container-high transition-colors">Contacted</button>
+<button class="flex-none px-5 py-2 rounded-full bg-surface-container-low text-on-surface-variant border border-border-subtle text-label-md font-medium hover:bg-surface-container-high transition-colors">Follow-Up</button>
+<button class="flex-none px-5 py-2 rounded-full bg-surface-container-low text-on-surface-variant border border-border-subtle text-label-md font-medium hover:bg-surface-container-high transition-colors">Won</button>
+<button class="flex-none px-5 py-2 rounded-full bg-surface-container-low text-on-surface-variant border border-border-subtle text-label-md font-medium hover:bg-surface-container-high transition-colors">Lost</button>
+</div>
+<!-- Lead List -->
+<div class="px-4 flex flex-col gap-3 mt-2">
+<!-- Lead Card: Priority -->
+<div class="bg-surface-container-lowest border border-border-subtle rounded-xl p-4 shadow-sm relative overflow-hidden group active:scale-[0.98] transition-transform">
+<!-- Priority Indicator Bar -->
+<div class="absolute top-0 left-0 w-1 h-full bg-status-won"></div>
+<div class="flex justify-between items-start mb-2">
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Global Freight Solutions</h3>
+<span class="material-symbols-outlined text-status-followup text-[18px]" data-icon="star" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+<p class="text-body-sm text-slate-text">Sarah Jenkins • Fleet Manager</p>
+</div>
+<span class="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-status-won/10 text-status-won border border-status-won/20">Won</span>
+</div>
+<div class="flex items-center gap-4 mt-4 pt-3 border-t border-surface-container">
+<div class="flex items-center gap-1.5 text-body-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]" data-icon="schedule">schedule</span>
+<span>Updated 2h ago</span>
+</div>
+<div class="flex items-center gap-1.5 text-body-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]" data-icon="location_on">location_on</span>
+<span>Singapore, SG</span>
+</div>
+</div>
+</div>
+<!-- Lead Card: Contacted -->
+<div class="bg-surface-container-lowest border border-border-subtle rounded-xl p-4 shadow-sm group active:scale-[0.98] transition-transform">
+<div class="flex justify-between items-start mb-2">
+<div class="flex flex-col">
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Apex Logistics</h3>
+<p class="text-body-sm text-slate-text">Marcus Thorne • Operations Lead</p>
+</div>
+<span class="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-status-contacted/10 text-status-contacted border border-status-contacted/20">Contacted</span>
+</div>
+<div class="flex items-center gap-4 mt-4 pt-3 border-t border-surface-container">
+<div class="flex items-center gap-1.5 text-body-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]" data-icon="history">history</span>
+<span>Last Call: Yesterday</span>
+</div>
+<div class="ml-auto flex gap-2">
+<button class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]" data-icon="call">call</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Lead Card: New -->
+<div class="bg-surface-container-lowest border border-border-subtle rounded-xl p-4 shadow-sm group active:scale-[0.98] transition-transform">
+<div class="flex justify-between items-start mb-2">
+<div class="flex flex-col">
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Blue Ocean Logix</h3>
+<p class="text-body-sm text-slate-text">Elena Rodriguez • CEO</p>
+</div>
+<span class="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-status-new/10 text-status-new border border-status-new/20">New</span>
+</div>
+<div class="flex items-center gap-4 mt-4 pt-3 border-t border-surface-container">
+<div class="flex items-center gap-1.5 text-body-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]" data-icon="mail">mail</span>
+<span>Received 5h ago</span>
+</div>
+</div>
+</div>
+<!-- Lead Card: Follow-Up -->
+<div class="bg-surface-container-lowest border border-border-subtle rounded-xl p-4 shadow-sm group active:scale-[0.98] transition-transform relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-status-followup"></div>
+<div class="flex justify-between items-start mb-2">
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Titan Transport Corp</h3>
+<span class="material-symbols-outlined text-status-followup text-[18px]" data-icon="star" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+<p class="text-body-sm text-slate-text">John Doe • Procurement</p>
+</div>
+<span class="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-status-followup/10 text-status-followup border border-status-followup/20">Follow-Up</span>
+</div>
+<div class="flex items-center gap-4 mt-4 pt-3 border-t border-surface-container">
+<div class="flex items-center gap-1.5 text-body-sm text-status-followup font-medium">
+<span class="material-symbols-outlined text-[16px]" data-icon="event">event</span>
+<span>Task: Meeting Today 4:00 PM</span>
+</div>
+</div>
+</div>
+<!-- Lead Card: New -->
+<div class="bg-surface-container-lowest border border-border-subtle rounded-xl p-4 shadow-sm group active:scale-[0.98] transition-transform">
+<div class="flex justify-between items-start mb-2">
+<div class="flex flex-col">
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Swift Distribution</h3>
+<p class="text-body-sm text-slate-text">Kevin Wong • Warehouse Mgr</p>
+</div>
+<span class="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-status-new/10 text-status-new border border-status-new/20">New</span>
+</div>
+<div class="flex items-center gap-4 mt-4 pt-3 border-t border-surface-container">
+<div class="flex items-center gap-1.5 text-body-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]" data-icon="mail">mail</span>
+<span>Received 1d ago</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button -->
+<button class="fixed bottom-20 right-6 w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center active:scale-90 transition-transform z-40">
+<span class="material-symbols-outlined text-[28px]" data-icon="add">add</span>
+</button>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-xl border-t border-border-subtle dark:border-outline-variant bg-surface dark:bg-on-background shadow-lg flex justify-around items-center h-16 pb-safe">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-label-md text-label-md">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary dark:text-secondary-fixed-dim font-medium bg-secondary-container/10 rounded-full py-1 px-3" href="#">
+<span class="material-symbols-outlined" data-icon="leaderboard" style="font-variation-settings: 'FILL' 1;">leaderboard</span>
+<span class="font-label-md text-label-md">Leads</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="location_on">location_on</span>
+<span class="font-label-md text-label-md">Visits</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="assignment_turned_in">assignment_turned_in</span>
+<span class="font-label-md text-label-md">Attendance</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a>
+</nav>
+<script>
+        // Micro-interactions for buttons
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('touchstart', function() {
+                this.classList.add('opacity-80');
+            });
+            btn.addEventListener('touchend', function() {
+                this.classList.remove('opacity-80');
+            });
+        });
+
+        // Simple filter active state toggle
+        const filterButtons = document.querySelectorAll('.hide-scrollbar button');
+        filterButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterButtons.forEach(b => {
+                    b.classList.remove('bg-primary', 'text-on-primary');
+                    b.classList.add('bg-surface-container-low', 'text-on-surface-variant');
+                });
+                btn.classList.add('bg-primary', 'text-on-primary');
+                btn.classList.remove('bg-surface-container-low', 'text-on-surface-variant');
+            });
+        });
+    </script>
+</body></html>

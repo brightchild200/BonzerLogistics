@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LogisticsPro - Log a Visit</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "secondary": "#00629d",
+                      "surface-container-low": "#f2f4f7",
+                      "error-container": "#ffdad6",
+                      "surface-container-highest": "#e0e3e6",
+                      "surface-container-high": "#e6e8eb",
+                      "slate-text": "#475569",
+                      "on-secondary-container": "#004470",
+                      "surface-bright": "#f7f9fc",
+                      "tertiary-container": "#616b82",
+                      "on-surface": "#191c1e",
+                      "background": "#f7f9fc",
+                      "on-tertiary": "#ffffff",
+                      "surface-variant": "#e0e3e6",
+                      "outline-variant": "#c2c6d4",
+                      "on-primary-fixed-variant": "#00468b",
+                      "on-tertiary-fixed-variant": "#3d475c",
+                      "surface-tint": "#005db5",
+                      "status-new": "#206BC4",
+                      "on-surface-variant": "#424752",
+                      "primary-fixed": "#d6e3ff",
+                      "on-primary-container": "#e7edff",
+                      "surface-container": "#eceef1",
+                      "status-followup": "#F59E0B",
+                      "on-primary-fixed": "#001b3d",
+                      "status-contacted": "#6366F1",
+                      "on-tertiary-container": "#e8edff",
+                      "surface-container-lowest": "#ffffff",
+                      "on-error": "#ffffff",
+                      "tertiary-fixed": "#d8e2fd",
+                      "surface": "#f7f9fc",
+                      "error": "#ba1a1a",
+                      "on-primary": "#ffffff",
+                      "tertiary": "#495369",
+                      "secondary-fixed-dim": "#99cbff",
+                      "primary": "#0052a1",
+                      "on-background": "#191c1e",
+                      "primary-container": "#206bc4",
+                      "on-secondary-fixed": "#001d34",
+                      "inverse-primary": "#a8c8ff",
+                      "secondary-container": "#61b4fd",
+                      "tertiary-fixed-dim": "#bcc6e1",
+                      "primary-fixed-dim": "#a8c8ff",
+                      "outline": "#727783",
+                      "inverse-on-surface": "#eff1f4",
+                      "on-tertiary-fixed": "#111b2f",
+                      "on-secondary-fixed-variant": "#004a78",
+                      "on-secondary": "#ffffff",
+                      "on-error-container": "#93000a",
+                      "status-lost": "#EF4444",
+                      "surface-dim": "#d8dadd",
+                      "inverse-surface": "#2d3133",
+                      "border-subtle": "#E2E8F0",
+                      "secondary-fixed": "#cfe5ff",
+                      "status-won": "#10B981"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "container-padding": "1rem",
+                      "sidebar-width": "260px",
+                      "gutter": "1.5rem",
+                      "stack-sm": "0.5rem",
+                      "stack-md": "1rem",
+                      "stack-lg": "2rem"
+              },
+              "fontFamily": {
+                      "body-sm": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "label-md": ["Inter"],
+                      "headline-lg": ["Inter"],
+                      "label-caps": ["Inter"],
+                      "mono-data": ["Inter"],
+                      "headline-sm": ["Inter"],
+                      "body-md": ["Inter"]
+              },
+              "fontSize": {
+                      "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                      "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                      "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                      "mono-data": ["13px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+                      "headline-sm": ["18px", {"lineHeight": "26px", "fontWeight": "600"}],
+                      "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+              }
+            },
+          },
+        }
+      </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-dot {
+            width: 4px;
+            height: 4px;
+            background-color: currentColor;
+            border-radius: 50%;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body class="bg-background font-body-md text-on-surface">
+<!-- TopAppBar -->
+<header class="bg-surface-container-lowest dark:bg-inverse-surface w-full top-0 sticky border-b border-border-subtle dark:border-outline-variant z-40">
+<div class="flex justify-between items-center px-4 h-16 w-full">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container overflow-hidden">
+<span class="material-symbols-outlined">person</span>
+</div>
+<h1 class="font-headline-sm text-headline-sm font-bold text-primary dark:text-primary-fixed">LogisticsPro</h1>
+</div>
+<button class="w-10 h-10 flex items-center justify-center text-primary dark:text-primary-fixed hover:bg-surface-container-low transition-colors duration-200 rounded-full">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</div>
+</header>
+<main class="pb-24 px-container-padding pt-4 space-y-stack-md max-w-md mx-auto">
+<div class="flex items-center justify-between">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Log a Visit</h2>
+<span class="text-label-caps font-label-caps text-slate-text bg-surface-container-high px-2 py-1 rounded">MOBILE SYNC ON</span>
+</div>
+<!-- Progress Tracker (Visual Cue) -->
+<div class="flex gap-1 h-1 w-full rounded overflow-hidden">
+<div class="flex-1 bg-primary"></div>
+<div class="flex-1 bg-primary"></div>
+<div class="flex-1 bg-primary"></div>
+<div class="flex-1 bg-surface-container-highest"></div>
+</div>
+<!-- Step 1: Select Customer -->
+<section class="bg-surface-container-lowest border border-border-subtle rounded-xl p-stack-md">
+<label class="block text-label-md font-label-md text-slate-text mb-2">STEP 1: CUSTOMER SELECTION</label>
+<div class="relative">
+<select class="w-full h-10 bg-white border border-outline-variant rounded-lg px-3 appearance-none focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-body-md transition-all">
+<option disabled="" selected="" value="">Select a Lead or Client</option>
+<option value="1">Global Freight Solutions Ltd.</option>
+<option value="2">Apex Logistics Hub</option>
+<option value="3">Maritime Express Port Co.</option>
+<option value="4">Swift-Way Distribution</option>
+</select>
+<div class="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-outline">expand_more</span>
+</div>
+</div>
+</section>
+<!-- Step 2: Automatic GPS Location -->
+<section class="bg-surface-container-lowest border border-border-subtle rounded-xl overflow-hidden">
+<div class="h-32 bg-surface-container-high relative overflow-hidden">
+<!-- Map Placeholder Image -->
+<img alt="GPS Location Preview" class="w-full h-full object-cover grayscale-[0.3]" data-alt="A top-down satellite map view of a busy commercial port and logistics terminal with docking areas and container stacks. The style is clean and technical with a subtle blue tint to match a corporate logistics app design. A blue location pin is centered on the terminal area." data-location="Elizabeth, New Jersey" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDll1dIEHkGepJ8GOyN_OHronbZT7QYYTyNSo8FqaeNX4DDLm-US9DeMQF1LzKcZgWkPVu2Shs9zKrH_csRCVRxsbVUrCsNLbZVAPHf5mbKq8Rrs-1y98yQdfQedGZO7l8_iAGx1umfHr_tHygyPgPRkabpiZAFWHw_GV6poYebNHZvhtp5LwQO5-iUMg53xJf4fKzFvwEJ6HJvc3v0w_18QGuZFycRK0GpPZlEDEvxYu452Emu1GBSYzlssmANegySNfD2jkTojq4"/>
+<div class="absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded text-label-md font-label-md flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-status-won" style="font-variation-settings: 'FILL' 1;">location_on</span>
+                    GPS LOCKED
+                </div>
+</div>
+<div class="p-stack-md">
+<label class="block text-label-md font-label-md text-slate-text mb-2">STEP 2: DETECTED ADDRESS</label>
+<div class="flex gap-3">
+<div class="w-8 h-8 rounded-full bg-secondary-container/20 flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-secondary text-[20px]">pin_drop</span>
+</div>
+<div>
+<p class="font-body-md text-on-surface font-semibold">Terminal 4, Port of New Jersey</p>
+<p class="font-mono-data text-mono-data text-slate-text">40.6710° N, 74.1509° W</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Step 3: Visit Remarks -->
+<section class="bg-surface-container-lowest border border-border-subtle rounded-xl p-stack-md">
+<label class="block text-label-md font-label-md text-slate-text mb-2">STEP 3: VISIT REMARKS</label>
+<textarea class="w-full bg-white border border-outline-variant rounded-lg p-3 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-body-md transition-all resize-none" placeholder="Describe the visit outcome, client needs, or follow-up actions..." rows="4"></textarea>
+</section>
+<!-- Step 4: Photo Upload -->
+<section class="bg-surface-container-lowest border border-border-subtle rounded-xl p-stack-md">
+<div class="flex justify-between items-center mb-3">
+<label class="text-label-md font-label-md text-slate-text">STEP 4: PHOTO LOG (1/3)</label>
+<button class="text-primary text-label-md font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">add_a_photo</span>
+                    ADD MORE
+                </button>
+</div>
+<div class="grid grid-cols-3 gap-2">
+<!-- Uploaded Photo Thumbnail -->
+<div class="aspect-square rounded-lg overflow-hidden border border-outline-variant relative group">
+<img alt="Uploaded warehouse photo" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDlf4cP8qFf0YXRghVFqRr_dH2_CqlAkIBGOTpnhzq3zFek-eC-D6vIddQdDmZa4XwnctL7cLxsRlbbEHZhS5NUJ1lKAv7X4fhl2Radhbq6Nn-yhTI3rx76IuFZnZG4WWFo5IWp12k3MEG8glaqJCamEeQPGns61I46Wyl6zgiz_PuzxhJOdjf28OE-xHCRVd6_pBEKP8uSr3VJFQmUXZTnmLXUUkW88bWFNbjxhocaqfC15aaToHksLYmQ1dPPnu8w4hOkfseuimk"/>
+<div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-white">delete</span>
+</div>
+</div>
+<!-- Placeholder/Empty Slots -->
+<div class="aspect-square rounded-lg border-2 border-dashed border-outline-variant bg-surface-container flex flex-col items-center justify-center text-outline-variant">
+<span class="material-symbols-outlined text-[24px]">image</span>
+<span class="text-[10px] font-label-caps mt-1">EMPTY</span>
+</div>
+<div class="aspect-square rounded-lg border-2 border-dashed border-outline-variant bg-surface-container flex flex-col items-center justify-center text-outline-variant">
+<span class="material-symbols-outlined text-[24px]">image</span>
+<span class="text-[10px] font-label-caps mt-1">EMPTY</span>
+</div>
+</div>
+</section>
+<!-- Submit Button -->
+<div class="pt-2">
+<button class="w-full bg-primary-container text-white h-12 rounded-xl font-headline-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/10 active:scale-[0.98] transition-all">
+<span class="material-symbols-outlined">send</span>
+                Submit Visit
+            </button>
+<p class="text-center text-label-md text-slate-text mt-3 flex items-center justify-center gap-1">
+<span class="material-symbols-outlined text-[16px]">cloud_done</span>
+                Auto-syncs when online
+            </p>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center bg-surface-container-lowest dark:bg-inverse-surface px-2 py-3 border-t border-border-subtle dark:border-outline-variant">
+<a class="flex flex-col items-center justify-center text-slate-text dark:text-surface-variant scale-95 active:scale-90 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-md text-label-md">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-text dark:text-surface-variant scale-95 active:scale-90 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined">leaderboard</span>
+<span class="font-label-md text-label-md">Leads</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary dark:text-secondary-container font-semibold scale-95 active:scale-90 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">location_on</span>
+<span class="font-label-md text-label-md">Visits</span>
+<div class="active-dot"></div>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-text dark:text-surface-variant scale-95 active:scale-90 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined">assignment_turned_in</span>
+<span class="font-label-md text-label-md">Attendance</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-text dark:text-surface-variant scale-95 active:scale-90 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a>
+</nav>
+<script>
+        // Micro-interaction for form completion feedback
+        const textarea = document.querySelector('textarea');
+        const submitBtn = document.querySelector('button.bg-primary-container');
+        
+        textarea.addEventListener('input', () => {
+            if (textarea.value.length > 5) {
+                submitBtn.classList.remove('opacity-70');
+                submitBtn.classList.add('shadow-primary/30');
+            } else {
+                submitBtn.classList.add('opacity-70');
+            }
+        });
+
+        // Initialize button state
+        submitBtn.classList.add('opacity-70');
+    </script>
+</body></html>

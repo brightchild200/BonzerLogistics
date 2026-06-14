@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Customer Visits - Logistics CRM</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-high": "#e6e8eb",
+                        "status-contacted": "#6366F1",
+                        "on-surface": "#191c1e",
+                        "on-tertiary-container": "#e8edff",
+                        "surface-tint": "#005db5",
+                        "primary-fixed-dim": "#a8c8ff",
+                        "surface-bright": "#f7f9fc",
+                        "tertiary-fixed": "#d8e2fd",
+                        "surface-dim": "#d8dadd",
+                        "on-secondary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "slate-text": "#475569",
+                        "status-lost": "#EF4444",
+                        "surface-container-low": "#f2f4f7",
+                        "border-subtle": "#E2E8F0",
+                        "on-primary-fixed": "#001b3d",
+                        "on-tertiary-fixed": "#111b2f",
+                        "surface-container": "#eceef1",
+                        "primary-container": "#206bc4",
+                        "on-secondary-fixed-variant": "#004a78",
+                        "inverse-on-surface": "#eff1f4",
+                        "on-primary-container": "#e7edff",
+                        "secondary-fixed": "#cfe5ff",
+                        "on-tertiary-fixed-variant": "#3d475c",
+                        "secondary": "#00629d",
+                        "primary": "#0052a1",
+                        "secondary-fixed-dim": "#99cbff",
+                        "tertiary-container": "#616b82",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-variant": "#e0e3e6",
+                        "on-primary-fixed-variant": "#00468b",
+                        "on-secondary-container": "#004470",
+                        "on-primary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#e0e3e6",
+                        "status-new": "#206BC4",
+                        "on-secondary-fixed": "#001d34",
+                        "status-won": "#10B981",
+                        "secondary-container": "#61b4fd",
+                        "inverse-surface": "#2d3133",
+                        "background": "#f7f9fc",
+                        "error-container": "#ffdad6",
+                        "status-followup": "#F59E0B",
+                        "surface": "#f7f9fc",
+                        "outline-variant": "#c2c6d4",
+                        "on-surface-variant": "#424752",
+                        "on-tertiary": "#ffffff",
+                        "outline": "#727783",
+                        "tertiary-fixed-dim": "#bcc6e1",
+                        "inverse-primary": "#a8c8ff",
+                        "tertiary": "#495369",
+                        "on-background": "#191c1e",
+                        "primary-fixed": "#d6e3ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "sidebar-width": "260px",
+                        "container-padding": "2rem",
+                        "stack-sm": "0.5rem",
+                        "stack-md": "1rem",
+                        "stack-lg": "2rem",
+                        "gutter": "1.5rem"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "mono-data": ["Inter"],
+                        "body-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "mono-data": ["13px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "headline-sm": ["18px", {"lineHeight": "26px", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fc; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .sidebar-active { background-color: #cfe5ff; color: #004470; font-weight: 700; border-radius: 0.5rem; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="flex min-h-screen">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[260px] bg-surface dark:bg-inverse-surface border-r border-border-subtle dark:border-outline-variant flex flex-col py-6 px-4 z-50">
+<div class="mb-8 px-2">
+<h1 class="text-headline-md font-headline-md font-bold text-primary dark:text-inverse-primary">Logistics Pro</h1>
+<p class="text-label-md font-label-md text-on-surface-variant">Sales Management</p>
+</div>
+<button class="mb-6 flex items-center justify-center gap-2 bg-primary-container text-on-primary-container py-3 px-4 rounded-xl font-bold transition-transform active:scale-95 shadow-sm">
+<span class="material-symbols-outlined">add</span>
+<span class="text-label-md font-label-md">New Lead</span>
+</button>
+<nav class="flex-1 space-y-1 overflow-y-auto hide-scrollbar">
+<!-- Dashboard -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-variant transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-label-md font-label-md">Dashboard</span>
+</a>
+<!-- Attendance -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-variant transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="location_on">location_on</span>
+<span class="text-label-md font-label-md">Attendance</span>
+</a>
+<!-- Leads -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-variant transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="person_search">person_search</span>
+<span class="text-label-md font-label-md">Leads</span>
+</a>
+<!-- Follow-Ups -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-variant transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="event_repeat">event_repeat</span>
+<span class="text-label-md font-label-md">Follow-Ups</span>
+</a>
+<!-- Customer Visits (ACTIVE) -->
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-lg font-bold transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="route">route</span>
+<span class="text-label-md font-label-md">Customer Visits</span>
+</a>
+<!-- Profile -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-variant transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="text-label-md font-label-md">Profile</span>
+</a>
+<div class="pt-6 mt-6 border-t border-border-subtle opacity-60">
+<span class="px-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Systems</span>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant grayscale" href="#">
+<span class="material-symbols-outlined" data-icon="rocket_launch">rocket_launch</span>
+<span class="text-label-md font-label-md">Future Modules</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant grayscale" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-label-md font-label-md">Settings</span>
+</a>
+</div>
+</nav>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-[260px] flex-1 flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="sticky top-0 z-40 w-full bg-surface-container-lowest border-b border-border-subtle shadow-sm px-gutter py-3 flex items-center justify-between">
+<div class="flex items-center gap-6">
+<h2 class="text-headline-sm font-headline-sm font-black text-primary">Logistics CRM</h2>
+<div class="relative w-80">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+<input class="w-full bg-surface-container-low border-none rounded-full py-2 pl-10 pr-4 text-body-md focus:ring-2 focus:ring-primary/20 transition-all" placeholder="Search visits or customers..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-surface-container-low rounded-full transition-all active:scale-95">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+</button>
+<button class="p-2 hover:bg-surface-container-low rounded-full transition-all active:scale-95">
+<span class="material-symbols-outlined text-on-surface-variant">help_outline</span>
+</button>
+<div class="h-8 w-8 rounded-full overflow-hidden border border-border-subtle">
+<img alt="Manager Profile" data-alt="A professional headshot avatar of a logistics manager with a clean, approachable look, set against a soft blue professional background for a corporate CRM interface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCy7q6PK2TRfv8F2HXqGptBezFD0A3akncHw9TwKwXoWVPE7cc6TMA4pjwaXMn6TuyNMNnZ_Hi5mGYPk7DS8sovCgQ-t0OiRVfQSLASycMoSXYhfZ2x82YbXJUQ6HYlVg7Iwr3CBgQs0xebLllOptJaq_K2frPtjrBsXOOMCWdWw_1UgfEZ8a0GX7LLwHCBa8ZdMnvYI_wxG_UAFAk91FmOZBpKMHqJRY368OTH7RgIHiOOw2BuXkzkkQ43bF6D5MPrDhtVk1evoew"/>
+</div>
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="p-gutter space-y-stack-lg max-w-7xl mx-auto w-full">
+<!-- Page Header -->
+<div class="flex items-end justify-between">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface">Customer Visits</h1>
+<p class="text-body-md text-slate-text">Manage your site visits, capture proof of location, and track team movements.</p>
+</div>
+<button class="bg-primary text-on-primary font-bold px-6 py-2.5 rounded-lg flex items-center gap-2 shadow-md hover:bg-primary/90 transition-all active:scale-95" onclick="toggleForm()">
+<span class="material-symbols-outlined">add_location</span>
+                    Log New Visit
+                </button>
+</div>
+<div class="grid grid-cols-12 gap-gutter items-start">
+<!-- Left Section: Entry Form -->
+<section class="col-span-12 lg:col-span-4 space-y-stack-md sticky top-24" id="visitForm">
+<div class="bg-white border border-border-subtle rounded-xl p-6 shadow-sm">
+<div class="flex items-center gap-3 mb-6">
+<div class="p-2 bg-primary/10 rounded-lg text-primary">
+<span class="material-symbols-outlined">edit_calendar</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm">Log New Visit</h3>
+</div>
+<form class="space-y-stack-md">
+<div>
+<label class="block text-label-md font-bold text-on-surface-variant mb-1.5 uppercase tracking-wide">Select Customer</label>
+<select class="w-full border-border-subtle rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary text-body-md py-2.5">
+<option>Search and select customer...</option>
+<option>Global Logistics Corp</option>
+<option>Swift Cargo Solutions</option>
+<option>Oceanic Freight Ltd</option>
+<option>Metro Warehousing</option>
+</select>
+</div>
+<div>
+<label class="block text-label-md font-bold text-on-surface-variant mb-1.5 uppercase tracking-wide">Visit Remarks</label>
+<textarea class="w-full border-border-subtle rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary text-body-md" placeholder="Enter meeting notes, action items, or remarks..." rows="3"></textarea>
+</div>
+<!-- GPS Status Widget -->
+<div class="bg-surface-container-low rounded-lg p-4 border border-border-subtle/50">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center gap-2 text-primary">
+<span class="material-symbols-outlined text-[20px]">my_location</span>
+<span class="text-label-md font-bold">Location Capture</span>
+</div>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-status-won uppercase tracking-tighter">
+<span class="w-1 h-1 bg-status-won rounded-full mr-1 animate-pulse"></span>
+                                        High Accuracy
+                                    </span>
+</div>
+<div class="space-y-1">
+<p class="text-body-sm font-medium text-on-surface truncate">123 Business Way, Industrial Park, Complex B</p>
+<p class="font-mono-data text-label-md text-slate-text">Lat: 34.0522, Long: -118.2437</p>
+</div>
+</div>
+<!-- Photo Upload -->
+<div class="relative border-2 border-dashed border-border-subtle rounded-lg p-4 text-center hover:bg-surface-container-lowest transition-colors cursor-pointer group">
+<input class="absolute inset-0 opacity-0 cursor-pointer" type="file"/>
+<span class="material-symbols-outlined text-outline text-[32px] mb-1 group-hover:text-primary transition-colors">add_a_photo</span>
+<p class="text-body-sm text-slate-text">Capture site evidence (JPEG/PNG)</p>
+<p class="text-[10px] text-outline uppercase font-bold mt-1">Maximum 5MB</p>
+</div>
+<button class="w-full bg-primary text-on-primary font-bold py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-primary/90 transition-all shadow-sm" type="submit">
+<span class="material-symbols-outlined">check_circle</span>
+                                Complete Visit
+                            </button>
+</form>
+</div>
+<!-- Small Map Widget -->
+<div class="bg-white border border-border-subtle rounded-xl overflow-hidden shadow-sm">
+<div class="relative h-48 bg-surface-container">
+<div class="absolute inset-0 flex items-center justify-center bg-gray-200">
+<img alt="Map Preview" class="w-full h-full object-cover grayscale" data-alt="A stylized overhead satellite map of an industrial business park with clean vector-style road overlays and a single blue location pin marking a precise GPS coordinate in a modern UI style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCXKrhSPoP4VvyXRAy46Ebsk6VpqRAgVEm3tkYptCeQHnLdp6eVZ6s_trjDCfVGXS69KPTgroOza5K-qRUoKSPBCuyu0ih_T8C5zCL1LSPabLFADGUAKo7CjuOHo2I4LBHZHB-PYcOrjfPCmUPzLz9fn82oU-_xq_hKbpGITdEM4xW7YcW7hdNO2IsDlx_3yWllQi2Un4enEQvPlZCzR-gmlqktSpLUoNQKmmTNmVzrvEv2uOgqol5QXWlkApFp6evaZMgBKGWT71s"/>
+<div class="absolute inset-0 bg-primary/10 mix-blend-multiply"></div>
+<div class="absolute z-10 p-1.5 bg-primary text-on-primary rounded-full shadow-lg ring-4 ring-white">
+<span class="material-symbols-outlined text-sm">person_pin_circle</span>
+</div>
+</div>
+</div>
+<div class="p-4 bg-surface-container-lowest flex items-center justify-between border-t border-border-subtle">
+<div>
+<p class="text-label-md font-bold text-on-surface-variant uppercase">Latest Capture</p>
+<p class="text-body-sm text-on-surface font-medium">Los Angeles Distribution Hub</p>
+</div>
+<a class="text-primary text-label-md font-bold hover:underline flex items-center gap-1" href="#">
+                                Full Map <span class="material-symbols-outlined text-sm">open_in_new</span>
+</a>
+</div>
+</div>
+</section>
+<!-- Right Section: History List -->
+<section class="col-span-12 lg:col-span-8 space-y-stack-md">
+<div class="bg-white border border-border-subtle rounded-xl shadow-sm overflow-hidden">
+<div class="p-6 border-b border-border-subtle flex items-center justify-between bg-surface-container-lowest">
+<div>
+<h3 class="font-headline-sm text-headline-sm">Visit History</h3>
+<p class="text-body-sm text-slate-text">Track recent client interactions and field reports.</p>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 border border-border-subtle rounded hover:bg-surface-container-low text-on-surface-variant transition-colors">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+<button class="p-2 border border-border-subtle rounded hover:bg-surface-container-low text-on-surface-variant transition-colors">
+<span class="material-symbols-outlined">download</span>
+</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-low border-b border-border-subtle">
+<tr>
+<th class="px-6 py-4 text-label-caps text-on-surface-variant">Customer &amp; Contact</th>
+<th class="px-6 py-4 text-label-caps text-on-surface-variant">Date &amp; Time</th>
+<th class="px-6 py-4 text-label-caps text-on-surface-variant">Location</th>
+<th class="px-6 py-4 text-label-caps text-on-surface-variant">Status</th>
+<th class="px-6 py-4 text-label-caps text-on-surface-variant text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-border-subtle">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-blue-50 flex items-center justify-center text-primary font-bold">GL</div>
+<div>
+<p class="text-body-md font-bold text-on-surface">Global Logistics Corp</p>
+<p class="text-body-sm text-slate-text">Michael Henderson</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<p class="text-body-md text-on-surface">Oct 24, 2023</p>
+<p class="text-body-sm text-slate-text">02:30 PM</p>
+</td>
+<td class="px-6 py-4 max-w-xs">
+<p class="text-body-sm text-on-surface truncate">450 North Hill St, Suite 601, Los Angeles, CA</p>
+<p class="font-mono-data text-[11px] text-slate-text">34.0623, -118.2412</p>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-1 rounded bg-green-50 text-status-won text-[11px] font-bold border border-green-100 uppercase tracking-tighter">Completed</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary font-bold text-label-md hover:bg-primary/5 px-3 py-1.5 rounded transition-all">View Summary</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-blue-50 flex items-center justify-center text-primary font-bold">SC</div>
+<div>
+<p class="text-body-md font-bold text-on-surface">Swift Cargo Solutions</p>
+<p class="text-body-sm text-slate-text">Angela White</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<p class="text-body-md text-on-surface">Oct 24, 2023</p>
+<p class="text-body-sm text-slate-text">11:15 AM</p>
+</td>
+<td class="px-6 py-4 max-w-xs">
+<p class="text-body-sm text-on-surface truncate">980 S Boyle Ave, Los Angeles, CA 90023</p>
+<p class="font-mono-data text-[11px] text-slate-text">34.0321, -118.2198</p>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-1 rounded bg-green-50 text-status-won text-[11px] font-bold border border-green-100 uppercase tracking-tighter">Completed</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary font-bold text-label-md hover:bg-primary/5 px-3 py-1.5 rounded transition-all">View Summary</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-amber-50 flex items-center justify-center text-amber-600 font-bold">OF</div>
+<div>
+<p class="text-body-md font-bold text-on-surface">Oceanic Freight Ltd</p>
+<p class="text-body-sm text-slate-text">David Zhang</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<p class="text-body-md text-on-surface">Oct 25, 2023</p>
+<p class="text-body-sm text-slate-text">09:00 AM</p>
+</td>
+<td class="px-6 py-4 max-w-xs">
+<p class="text-body-sm text-on-surface truncate">221 S San Pedro St, Los Angeles, CA 90012</p>
+<p class="font-mono-data text-[11px] text-slate-text">34.0485, -118.2435</p>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-1 rounded bg-amber-50 text-status-followup text-[11px] font-bold border border-amber-100 uppercase tracking-tighter">Scheduled</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary font-bold text-label-md hover:bg-primary/5 px-3 py-1.5 rounded transition-all">View Summary</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-blue-50 flex items-center justify-center text-primary font-bold">MW</div>
+<div>
+<p class="text-body-md font-bold text-on-surface">Metro Warehousing</p>
+<p class="text-body-sm text-slate-text">Sarah Connor</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<p class="text-body-md text-on-surface">Oct 23, 2023</p>
+<p class="text-body-sm text-slate-text">04:45 PM</p>
+</td>
+<td class="px-6 py-4 max-w-xs">
+<p class="text-body-sm text-on-surface truncate">600 E Washington Blvd, Los Angeles, CA</p>
+<p class="font-mono-data text-[11px] text-slate-text">34.0289, -118.2567</p>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-1 rounded bg-green-50 text-status-won text-[11px] font-bold border border-green-100 uppercase tracking-tighter">Completed</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary font-bold text-label-md hover:bg-primary/5 px-3 py-1.5 rounded transition-all">View Summary</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination Footer -->
+<div class="p-6 bg-surface-container-lowest border-t border-border-subtle flex items-center justify-between">
+<p class="text-body-sm text-slate-text">Showing <span class="font-bold text-on-surface">4</span> of <span class="font-bold text-on-surface">124</span> visits</p>
+<div class="flex items-center gap-2">
+<button class="px-3 py-1.5 border border-border-subtle rounded-lg text-body-sm font-medium hover:bg-surface-container-low disabled:opacity-50">Previous</button>
+<button class="px-3 py-1.5 bg-primary text-on-primary rounded-lg text-body-sm font-bold shadow-sm">1</button>
+<button class="px-3 py-1.5 border border-border-subtle rounded-lg text-body-sm font-medium hover:bg-surface-container-low">2</button>
+<button class="px-3 py-1.5 border border-border-subtle rounded-lg text-body-sm font-medium hover:bg-surface-container-low">3</button>
+<button class="px-3 py-1.5 border border-border-subtle rounded-lg text-body-sm font-medium hover:bg-surface-container-low">Next</button>
+</div>
+</div>
+</div>
+<!-- Visit Statistics / Metrics (Bento Style) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-stack-md">
+<div class="bg-white border border-border-subtle rounded-xl p-5 shadow-sm">
+<p class="text-label-caps text-slate-text mb-1">Total Visits (Monthly)</p>
+<div class="flex items-baseline justify-between">
+<h4 class="text-headline-md font-bold text-on-surface">84</h4>
+<span class="text-status-won text-label-md font-bold flex items-center">+12% <span class="material-symbols-outlined text-sm">trending_up</span></span>
+</div>
+</div>
+<div class="bg-white border border-border-subtle rounded-xl p-5 shadow-sm">
+<p class="text-label-caps text-slate-text mb-1">Avg. Visit Duration</p>
+<div class="flex items-baseline justify-between">
+<h4 class="text-headline-md font-bold text-on-surface">42m</h4>
+<span class="text-slate-text text-label-md">Stable</span>
+</div>
+</div>
+<div class="bg-white border border-border-subtle rounded-xl p-5 shadow-sm">
+<p class="text-label-caps text-slate-text mb-1">Conversion Rate</p>
+<div class="flex items-baseline justify-between">
+<h4 class="text-headline-md font-bold text-on-surface">18.4%</h4>
+<span class="text-status-lost text-label-md font-bold flex items-center">-2.1% <span class="material-symbols-outlined text-sm">trending_down</span></span>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+<!-- Floating Mobile FAB (Contextual Suppression Logic applied via visibility classes) -->
+<div class="md:hidden fixed bottom-24 right-6 z-50">
+<button class="w-14 h-14 bg-primary text-on-primary rounded-full shadow-2xl flex items-center justify-center active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-3xl">add</span>
+</button>
+</div>
+</main>
+<script>
+        // Micro-interaction for form highlighting
+        function toggleForm() {
+            const form = document.getElementById('visitForm');
+            form.classList.add('ring-4', 'ring-primary/20', 'duration-500');
+            form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => {
+                form.classList.remove('ring-4', 'ring-primary/20');
+            }, 2000);
+        }
+
+        // Simulating location capture flicker for realism
+        document.addEventListener('DOMContentLoaded', () => {
+            const accIndicator = document.querySelector('.animate-pulse');
+            setInterval(() => {
+                accIndicator.style.opacity = accIndicator.style.opacity === '0.5' ? '1' : '0.5';
+            }, 800);
+        });
+    </script>
+</body></html>

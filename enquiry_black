@@ -1,0 +1,1096 @@
+/**
+ * AddEnquiryScreen.jsx
+ * Bonzer Logistics — Add New Enquiry
+ * Compatible: React Native (Expo) + React Native Web
+ * 
+ * Install deps:
+ *   expo install expo-linear-gradient
+ *   expo install @expo/vector-icons
+ *   npm install react-native-picker-select
+ */
+
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  Animated,
+  Platform,
+  Dimensions,
+  KeyboardAvoidingView,
+  StatusBar,
+  Pressable,
+  ActivityIndicator,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const IS_WEB = Platform.OS === 'web';
+const IS_WIDE = SCREEN_W > 768;
+
+// ─── Design Tokens ───────────────────────────────────────────────────────────
+const C = {
+  bg: '#0D1117',
+  surface: '#161B22',
+  card: '#1C2333',
+  cardBorder: '#2D3748',
+  navy: '#1A2744',
+  orange: '#FF6B2B',
+  orangeLight: '#FF8C5A',
+  orangeDim: 'rgba(255,107,43,0.15)',
+  blue: '#3B82F6',
+  blueDim: 'rgba(59,130,246,0.12)',
+  green: '#10B981',
+  greenDim: 'rgba(16,185,129,0.12)',
+  text: '#F0F6FC',
+  textSub: '#8B949E',
+  textMuted: '#484F58',
+  inputBg: '#0D1117',
+  inputBorder: '#30363D',
+  inputFocus: '#3B82F6',
+  white: '#FFFFFF',
+  danger: '#F85149',
+};
+
+// ─── Step Config ─────────────────────────────────────────────────────────────
+const STEPS = [
+  { id: 0, label: 'Enquiry', icon: 'document-text-outline' },
+  { id: 1, label: 'Shipment', icon: 'boat-outline' },
+  { id: 2, label: 'Cargo', icon: 'cube-outline' },
+  { id: 3, label: 'Quotation', icon: 'calculator-outline' },
+];
+
+// ─── Mock dropdown data ───────────────────────────────────────────────────────
+const CUSTOMERS = ['Alpha Exports Ltd', 'Beta Industries', 'Gamma Trading Co', 'Delta Freight'];
+const SHIPPERS = ['Quick Ship Co', 'FastMove Logistics', 'Global Cargo Inc'];
+const CONSIGNEES = ['Western Ports LLC', 'Eastern Terminals', 'North Star Cargo'];
+const SALES_PERSONS = ['Rahul Sharma', 'Priya Nair', 'Amit Patel', 'Sneha Kulkarni'];
+const MODES = ['Air Freight', 'Sea Freight', 'Road Freight', 'Rail Freight', 'Multimodal'];
+const COUNTRIES = ['India', 'USA', 'UAE', 'China', 'Germany', 'UK', 'Singapore', 'Australia'];
+const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP'];
+const WEIGHT_UNITS = ['KG', 'MT', 'LBS', 'TON'];
+const PKG_UNITS = ['Boxes', 'Pallets', 'Cartons', 'Bags', 'Drums', 'Crates'];
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function AnimatedStepper({ currentStep, onStepPress }) {
+  const indicatorAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(indicatorAnim, {
+      toValue: currentStep,
+      useNativeDriver: false,
+      tension: 60,
+      friction: 10,
+    }).start();
+  }, [currentStep]);
+
+  return (
+    <View style={styles.stepperWrap}>
+      {STEPS.map((step, i) => {
+        const isActive = i === currentStep;
+        const isDone = i < currentStep;
+        return (
+          <TouchableOpacity
+            key={step.id}
+            onPress={() => onStepPress(i)}
+            style={styles.stepItem}
+            activeOpacity={0.7}
+          >
+            {/* Connector line */}
+            {i > 0 && (
+              <View style={[styles.stepLine, isDone && styles.stepLineDone]} />
+            )}
+            {/* Circle */}
+            <View style={[
+              styles.stepCircle,
+              isActive && styles.stepCircleActive,
+              isDone && styles.stepCircleDone,
+            ]}>
+              {isDone
+                ? <Ionicons name="checkmark" size={14} color={C.white} />
+                : <Ionicons name={step.icon} size={15} color={isActive ? C.white : C.textMuted} />
+              }
+            </View>
+            <Text style={[
+              styles.stepLabel,
+              isActive && styles.stepLabelActive,
+              isDone && styles.stepLabelDone,
+            ]}>{step.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+function SectionCard({ title, subtitle, icon, iconColor = C.blue, iconBg = C.blueDim, children, delay = 0 }) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(24)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 420, delay, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 80, friction: 12, delay, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={[styles.sectionCard, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+      <View style={styles.sectionHeader}>
+        <View style={[styles.sectionIconWrap, { backgroundColor: iconBg }]}>
+          <Ionicons name={icon} size={20} color={iconColor} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          <Text style={styles.sectionSub}>{subtitle}</Text>
+        </View>
+      </View>
+      <View style={styles.sectionBody}>{children}</View>
+    </Animated.View>
+  );
+}
+
+function FieldLabel({ label, required }) {
+  return (
+    <Text style={styles.fieldLabel}>
+      {label.toUpperCase()}
+      {required && <Text style={{ color: C.orange }}> *</Text>}
+    </Text>
+  );
+}
+
+function StyledInput({ label, required, placeholder, value, onChangeText, keyboardType, multiline, icon }) {
+  const [focused, setFocused] = useState(false);
+  const borderAnim = useRef(new Animated.Value(0)).current;
+
+  const handleFocus = () => {
+    setFocused(true);
+    Animated.timing(borderAnim, { toValue: 1, duration: 200, useNativeDriver: false }).start();
+  };
+  const handleBlur = () => {
+    setFocused(false);
+    Animated.timing(borderAnim, { toValue: 0, duration: 200, useNativeDriver: false }).start();
+  };
+
+  const borderColor = borderAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [C.inputBorder, C.inputFocus],
+  });
+
+  return (
+    <View style={styles.fieldWrap}>
+      <FieldLabel label={label} required={required} />
+      <Animated.View style={[styles.inputWrap, { borderColor }]}>
+        {icon && (
+          <Ionicons name={icon} size={16} color={focused ? C.blue : C.textMuted} style={styles.inputIcon} />
+        )}
+        <TextInput
+          style={[styles.input, icon && { paddingLeft: 0 }, multiline && { height: 80, textAlignVertical: 'top' }]}
+          placeholder={placeholder}
+          placeholderTextColor={C.textMuted}
+          value={value}
+          onChangeText={onChangeText}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          keyboardType={keyboardType || 'default'}
+          multiline={multiline}
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
+function StyledPicker({ label, required, options, value, onSelect, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const dropAnim = useRef(new Animated.Value(0)).current;
+
+  const toggle = () => {
+    if (!open) {
+      setOpen(true);
+      Animated.spring(dropAnim, { toValue: 1, tension: 80, friction: 12, useNativeDriver: true }).start();
+    } else {
+      Animated.timing(dropAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => setOpen(false));
+    }
+  };
+
+  const select = (opt) => {
+    onSelect(opt);
+    Animated.timing(dropAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => setOpen(false));
+  };
+
+  const dropScale = dropAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] });
+  const dropOpacity = dropAnim;
+
+  return (
+    <View style={[styles.fieldWrap, { zIndex: open ? 999 : 1 }]}>
+      <FieldLabel label={label} required={required} />
+      <TouchableOpacity style={[styles.pickerBtn, open && styles.pickerBtnOpen]} onPress={toggle} activeOpacity={0.8}>
+        <Text style={[styles.pickerVal, !value && { color: C.textMuted }]}>
+          {value || placeholder || `Select ${label}`}
+        </Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={C.textSub} />
+      </TouchableOpacity>
+      {open && (
+        <Animated.View style={[styles.dropdown, { opacity: dropOpacity, transform: [{ scale: dropScale }] }]}>
+          <ScrollView nestedScrollEnabled style={{ maxHeight: 200 }}>
+            {options.map((opt) => (
+              <TouchableOpacity
+                key={opt}
+                style={[styles.dropItem, value === opt && styles.dropItemActive]}
+                onPress={() => select(opt)}
+              >
+                {value === opt && (
+                  <Ionicons name="checkmark-circle" size={14} color={C.orange} style={{ marginRight: 8 }} />
+                )}
+                <Text style={[styles.dropItemText, value === opt && styles.dropItemTextActive]}>{opt}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+function RowWrap({ children }) {
+  return (
+    <View style={IS_WIDE ? styles.rowWide : styles.rowNarrow}>
+      {React.Children.map(children, (child) => (
+        <View style={IS_WIDE ? { flex: 1, minWidth: 180 } : { width: '100%' }}>{child}</View>
+      ))}
+    </View>
+  );
+}
+
+function ChargeRow({ charge, index, onChange, onRemove }) {
+  return (
+    <View style={styles.chargeRow}>
+      <View style={styles.chargeBadge}>
+        <Text style={styles.chargeBadgeText}>{index + 1}</Text>
+      </View>
+      <View style={{ flex: 1, gap: 8 }}>
+        <View style={IS_WIDE ? { flexDirection: 'row', gap: 8 } : { gap: 8 }}>
+          <View style={{ flex: 2 }}>
+            <StyledInput
+              label="Description"
+              placeholder="Select Charge"
+              value={charge.description}
+              onChangeText={(v) => onChange(index, 'description', v)}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <StyledInput
+              label="Qty"
+              placeholder="1"
+              value={charge.qty}
+              onChangeText={(v) => onChange(index, 'qty', v)}
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <StyledInput
+              label="Rate"
+              placeholder="0"
+              value={charge.rate}
+              onChangeText={(v) => onChange(index, 'rate', v)}
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <StyledPicker
+              label="Currency"
+              options={CURRENCIES}
+              value={charge.currency}
+              onSelect={(v) => onChange(index, 'currency', v)}
+            />
+          </View>
+        </View>
+        <View style={styles.chargeAmountRow}>
+          <Text style={styles.chargeAmountLabel}>Amount (Local)</Text>
+          <Text style={styles.chargeAmountVal}>
+            {charge.currency === 'INR' ? '₹' : charge.currency === 'USD' ? '$' : charge.currency === 'EUR' ? '€' : '£'}
+            {((parseFloat(charge.qty) || 0) * (parseFloat(charge.rate) || 0)).toFixed(2)}
+          </Text>
+        </View>
+      </View>
+      <TouchableOpacity onPress={() => onRemove(index)} style={styles.chargeRemove}>
+        <Ionicons name="trash-outline" size={16} color={C.danger} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─── Main Screen ─────────────────────────────────────────────────────────────
+export default function AddEnquiryScreen({ navigation }) {
+  const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  // Form state
+  const [form, setForm] = useState({
+    company: 'BONZER LOGISTICS PVT LTD',
+    enqDate: new Date().toLocaleDateString('en-GB'),
+    customer: '',
+    salesPerson: '',
+    shipper: '',
+    consignee: '',
+    mode: '',
+    polCountry: '',
+    pol: '',
+    podCountry: '',
+    pod: '',
+    commodity: '',
+    packages: '',
+    packageUnit: '',
+    grossWeight: '',
+    weightUnit: '',
+    cbm: '',
+    usdRate: '',
+    eurRate: '',
+    gbpRate: '',
+  });
+  const [charges, setCharges] = useState([{ description: '', qty: '1', rate: '0', currency: 'INR' }]);
+
+  const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+
+  const addCharge = () =>
+    setCharges((c) => [...c, { description: '', qty: '1', rate: '0', currency: 'INR' }]);
+
+  const updateCharge = (i, key, val) =>
+    setCharges((c) => c.map((ch, idx) => (idx === i ? { ...ch, [key]: val } : ch)));
+
+  const removeCharge = (i) =>
+    setCharges((c) => c.filter((_, idx) => idx !== i));
+
+  const totalINR = charges.reduce((sum, ch) => {
+    const amt = (parseFloat(ch.qty) || 0) * (parseFloat(ch.rate) || 0);
+    const rate = ch.currency === 'USD' ? (parseFloat(form.usdRate) || 1)
+      : ch.currency === 'EUR' ? (parseFloat(form.eurRate) || 1)
+      : ch.currency === 'GBP' ? (parseFloat(form.gbpRate) || 1)
+      : 1;
+    return sum + amt * rate;
+  }, 0);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await new Promise((r) => setTimeout(r, 1800));
+    setSaving(false);
+    // navigation?.navigate('Enquiries') or show success toast
+    alert('Enquiry saved successfully!');
+  };
+
+  // Header fade-in
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(headerAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+  }, []);
+
+  return (
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+
+      {/* Top Header */}
+      <LinearGradient colors={['#0D1117', '#161B22']} style={styles.header}>
+        <Animated.View style={[styles.headerInner, { opacity: headerAnim }]}>
+          <TouchableOpacity
+            onPress={() => navigation?.goBack?.()}
+            style={styles.backBtn}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={20} color={C.text} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <View style={styles.headerTitleRow}>
+              <View style={styles.headerIconWrap}>
+                <MaterialCommunityIcons name="file-document-edit-outline" size={18} color={C.orange} />
+              </View>
+              <Text style={styles.headerTitle}>New Enquiry</Text>
+            </View>
+            <Text style={styles.headerSub}>Create quotation · Bonzer Logistics</Text>
+          </View>
+          <View style={styles.headerBadge}>
+            <Text style={styles.headerBadgeText}>DRAFT</Text>
+          </View>
+        </Animated.View>
+
+        {/* Stepper */}
+        <AnimatedStepper currentStep={step} onStepPress={setStep} />
+      </LinearGradient>
+
+      {/* Body */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+
+          {/* STEP 0: Enquiry Details */}
+          {step === 0 && (
+            <>
+              <SectionCard title="Enquiry Details" subtitle="Customer, Dates & Sales Person" icon="person-circle-outline" iconColor={C.blue} iconBg={C.blueDim} delay={0}>
+                <RowWrap>
+                  <StyledInput label="Company" required value={form.company} onChangeText={(v) => set('company', v)} icon="business-outline" />
+                  <StyledInput label="Enquiry Date" required value={form.enqDate} onChangeText={(v) => set('enqDate', v)} icon="calendar-outline" />
+                </RowWrap>
+                <RowWrap>
+                  <StyledPicker label="Customer Name" options={CUSTOMERS} value={form.customer} onSelect={(v) => set('customer', v)} />
+                  <StyledPicker label="Sales Person" options={SALES_PERSONS} value={form.salesPerson} onSelect={(v) => set('salesPerson', v)} />
+                </RowWrap>
+                <RowWrap>
+                  <StyledPicker label="Shipper" options={SHIPPERS} value={form.shipper} onSelect={(v) => set('shipper', v)} />
+                  <StyledPicker label="Consignee" options={CONSIGNEES} value={form.consignee} onSelect={(v) => set('consignee', v)} />
+                </RowWrap>
+              </SectionCard>
+
+              <TouchableOpacity style={styles.nextBtn} onPress={() => setStep(1)} activeOpacity={0.85}>
+                <LinearGradient colors={[C.orange, C.orangeLight]} style={styles.nextBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                  <Text style={styles.nextBtnText}>Next: Shipment Details</Text>
+                  <Ionicons name="arrow-forward" size={18} color={C.white} />
+                </LinearGradient>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {/* STEP 1: Shipment Details */}
+          {step === 1 && (
+            <>
+              <SectionCard title="Shipment Details" subtitle="Mode, Ports & Route" icon="boat-outline" iconColor="#8B5CF6" iconBg="rgba(139,92,246,0.12)" delay={0}>
+                <StyledPicker label="Transport Mode" required options={MODES} value={form.mode} onSelect={(v) => set('mode', v)} />
+                <RowWrap>
+                  <StyledPicker label="POL Country" options={COUNTRIES} value={form.polCountry} onSelect={(v) => { set('polCountry', v); set('pol', ''); }} />
+                  <StyledPicker label="Port of Loading (POL)" options={form.polCountry ? COUNTRIES : []} value={form.pol} onSelect={(v) => set('pol', v)} placeholder={form.polCountry ? 'Select Port' : '← Select Country First'} />
+                </RowWrap>
+                <RowWrap>
+                  <StyledPicker label="POD Country" options={COUNTRIES} value={form.podCountry} onSelect={(v) => { set('podCountry', v); set('pod', ''); }} />
+                  <StyledPicker label="Port of Discharge (POD)" options={form.podCountry ? COUNTRIES : []} value={form.pod} onSelect={(v) => set('pod', v)} placeholder={form.podCountry ? 'Select Port' : '← Select Country First'} />
+                </RowWrap>
+              </SectionCard>
+
+              <View style={styles.stepNavRow}>
+                <TouchableOpacity style={styles.backStepBtn} onPress={() => setStep(0)} activeOpacity={0.7}>
+                  <Ionicons name="arrow-back" size={16} color={C.textSub} />
+                  <Text style={styles.backStepText}>Back</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.nextBtn2} onPress={() => setStep(2)} activeOpacity={0.85}>
+                  <LinearGradient colors={[C.orange, C.orangeLight]} style={styles.nextBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                    <Text style={styles.nextBtnText}>Next: Cargo</Text>
+                    <Ionicons name="arrow-forward" size={16} color={C.white} />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          {/* STEP 2: Cargo Details */}
+          {step === 2 && (
+            <>
+              <SectionCard title="Cargo Details" subtitle="Commodity, Weight & Dimensions" icon="cube-outline" iconColor={C.green} iconBg={C.greenDim} delay={0}>
+                <StyledInput label="Commodity" placeholder="e.g. Electronic Components" value={form.commodity} onChangeText={(v) => set('commodity', v)} icon="layers-outline" />
+                <RowWrap>
+                  <StyledInput label="Packages" placeholder="0" value={form.packages} onChangeText={(v) => set('packages', v)} keyboardType="numeric" />
+                  <StyledPicker label="Package Unit" options={PKG_UNITS} value={form.packageUnit} onSelect={(v) => set('packageUnit', v)} />
+                </RowWrap>
+                <RowWrap>
+                  <StyledInput label="Gross Weight" placeholder="0.00" value={form.grossWeight} onChangeText={(v) => set('grossWeight', v)} keyboardType="numeric" />
+                  <StyledPicker label="Weight Unit" options={WEIGHT_UNITS} value={form.weightUnit} onSelect={(v) => set('weightUnit', v)} />
+                </RowWrap>
+                <StyledInput label="CBM (Volume)" placeholder="0.000" value={form.cbm} onChangeText={(v) => set('cbm', v)} keyboardType="numeric" icon="resize-outline" />
+              </SectionCard>
+
+              <View style={styles.stepNavRow}>
+                <TouchableOpacity style={styles.backStepBtn} onPress={() => setStep(1)} activeOpacity={0.7}>
+                  <Ionicons name="arrow-back" size={16} color={C.textSub} />
+                  <Text style={styles.backStepText}>Back</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.nextBtn2} onPress={() => setStep(3)} activeOpacity={0.85}>
+                  <LinearGradient colors={[C.orange, C.orangeLight]} style={styles.nextBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                    <Text style={styles.nextBtnText}>Next: Quotation</Text>
+                    <Ionicons name="arrow-forward" size={16} color={C.white} />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          {/* STEP 3: Quotation Lines */}
+          {step === 3 && (
+            <>
+              {/* Exchange Rates */}
+              <SectionCard title="Exchange Rates" subtitle="Conversion to INR" icon="swap-horizontal-outline" iconColor={C.orange} iconBg={C.orangeDim} delay={0}>
+                <View style={styles.ratesRow}>
+                  {[
+                    { key: 'usdRate', label: 'USD', symbol: '$' },
+                    { key: 'eurRate', label: 'EUR', symbol: '€' },
+                    { key: 'gbpRate', label: 'GBP', symbol: '£' },
+                  ].map((r) => (
+                    <View key={r.key} style={styles.rateCard}>
+                      <Text style={styles.rateSymbol}>{r.symbol}</Text>
+                      <Text style={styles.rateName}>{r.label}</Text>
+                      <TextInput
+                        style={styles.rateInput}
+                        placeholder="0.00"
+                        placeholderTextColor={C.textMuted}
+                        value={form[r.key]}
+                        onChangeText={(v) => set(r.key, v)}
+                        keyboardType="numeric"
+                      />
+                      <Text style={styles.rateEquals}>= ₹</Text>
+                    </View>
+                  ))}
+                </View>
+              </SectionCard>
+
+              {/* Charge Lines */}
+              <SectionCard title="Quotation Lines" subtitle="Add charges & costs" icon="calculator-outline" iconColor="#EC4899" iconBg="rgba(236,72,153,0.12)" delay={100}>
+                {charges.map((ch, i) => (
+                  <ChargeRow key={i} charge={ch} index={i} onChange={updateCharge} onRemove={removeCharge} />
+                ))}
+
+                <TouchableOpacity style={styles.addChargeBtn} onPress={addCharge} activeOpacity={0.7}>
+                  <Ionicons name="add-circle-outline" size={18} color={C.orange} />
+                  <Text style={styles.addChargeTxt}>Add Charge Line</Text>
+                </TouchableOpacity>
+
+                {/* Total */}
+                <LinearGradient colors={['#1A2744', '#0F1729']} style={styles.totalCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                  <View style={styles.totalRow}>
+                    <View>
+                      <Text style={styles.totalLabel}>CONVERTED INR TOTAL</Text>
+                      <Text style={styles.totalSub}>All charges in base currency</Text>
+                    </View>
+                    <Text style={styles.totalAmt}>₹{totalINR.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                  </View>
+                </LinearGradient>
+              </SectionCard>
+
+              {/* Save Button */}
+              <View style={styles.stepNavRow}>
+                <TouchableOpacity style={styles.backStepBtn} onPress={() => setStep(2)} activeOpacity={0.7}>
+                  <Ionicons name="arrow-back" size={16} color={C.textSub} />
+                  <Text style={styles.backStepText}>Back</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} disabled={saving}>
+                  <LinearGradient colors={['#10B981', '#059669']} style={styles.nextBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                    {saving
+                      ? <ActivityIndicator color={C.white} size="small" />
+                      : <>
+                          <Ionicons name="checkmark-circle-outline" size={18} color={C.white} />
+                          <Text style={styles.nextBtnText}>Save Enquiry</Text>
+                        </>
+                    }
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: C.bg,
+  },
+
+  // ── Header
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 54 : 16,
+    paddingHorizontal: 16,
+    paddingBottom: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: C.cardBorder,
+  },
+  headerInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: C.orangeDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: C.text,
+    letterSpacing: -0.3,
+  },
+  headerSub: {
+    fontSize: 12,
+    color: C.textSub,
+    marginTop: 2,
+  },
+  headerBadge: {
+    backgroundColor: C.orangeDim,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: C.orange,
+  },
+  headerBadgeText: {
+    color: C.orange,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+
+  // ── Stepper
+  stepperWrap: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 4,
+    paddingBottom: 16,
+    gap: 0,
+  },
+  stepItem: {
+    flex: 1,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  stepLine: {
+    position: 'absolute',
+    top: 16,
+    right: '50%',
+    left: '-50%',
+    height: 2,
+    backgroundColor: C.cardBorder,
+    zIndex: 0,
+  },
+  stepLineDone: {
+    backgroundColor: C.orange,
+  },
+  stepCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: C.card,
+    borderWidth: 2,
+    borderColor: C.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  stepCircleActive: {
+    backgroundColor: C.orange,
+    borderColor: C.orange,
+    shadowColor: C.orange,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  stepCircleDone: {
+    backgroundColor: C.orange,
+    borderColor: C.orange,
+  },
+  stepLabel: {
+    fontSize: 10,
+    color: C.textMuted,
+    fontWeight: '600',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  stepLabelActive: {
+    color: C.orange,
+  },
+  stepLabelDone: {
+    color: C.textSub,
+  },
+
+  // ── Scroll
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingTop: 20,
+    maxWidth: IS_WEB ? 900 : undefined,
+    alignSelf: IS_WEB ? 'center' : undefined,
+    width: IS_WEB ? '100%' : undefined,
+  },
+
+  // ── Section Card
+  sectionCard: {
+    backgroundColor: C.card,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    marginBottom: 16,
+    overflow: 'visible',
+    ...(IS_WEB ? { boxShadow: '0 4px 32px rgba(0,0,0,0.3)' } : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      elevation: 6,
+    }),
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: C.cardBorder,
+  },
+  sectionIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: C.text,
+    letterSpacing: -0.2,
+  },
+  sectionSub: {
+    fontSize: 11,
+    color: C.textSub,
+    marginTop: 2,
+  },
+  sectionBody: {
+    padding: 18,
+    gap: 14,
+  },
+
+  // ── Fields
+  fieldWrap: {
+    gap: 6,
+  },
+  fieldLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: C.textSub,
+    letterSpacing: 0.8,
+  },
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: C.inputBg,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    paddingHorizontal: 12,
+    height: 46,
+    gap: 8,
+  },
+  inputIcon: {
+    width: 20,
+  },
+  input: {
+    flex: 1,
+    color: C.text,
+    fontSize: 14,
+    fontWeight: '500',
+    height: '100%',
+    ...(IS_WEB ? { outlineWidth: 0 } : {}),
+  },
+
+  // ── Picker
+  pickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: C.inputBg,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: C.inputBorder,
+    paddingHorizontal: 14,
+    height: 46,
+  },
+  pickerBtnOpen: {
+    borderColor: C.inputFocus,
+  },
+  pickerVal: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: C.text,
+    flex: 1,
+  },
+  dropdown: {
+    position: 'absolute',
+    top: 78,
+    left: 0,
+    right: 0,
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    zIndex: 9999,
+    overflow: 'hidden',
+    ...(IS_WEB ? { boxShadow: '0 8px 32px rgba(0,0,0,0.5)' } : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.5,
+      shadowRadius: 16,
+      elevation: 20,
+    }),
+  },
+  dropItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: C.cardBorder,
+  },
+  dropItemActive: {
+    backgroundColor: C.orangeDim,
+  },
+  dropItemText: {
+    fontSize: 13,
+    color: C.textSub,
+    fontWeight: '500',
+  },
+  dropItemTextActive: {
+    color: C.orange,
+    fontWeight: '700',
+  },
+
+  // ── Row layouts
+  rowWide: {
+    flexDirection: 'row',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  rowNarrow: {
+    flexDirection: 'column',
+    gap: 14,
+  },
+
+  // ── Navigation buttons
+  nextBtn: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  nextBtn2: {
+    flex: 1,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  saveBtn: {
+    flex: 1,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  nextBtnGrad: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 15,
+    gap: 8,
+  },
+  nextBtnText: {
+    color: C.white,
+    fontWeight: '800',
+    fontSize: 14,
+    letterSpacing: 0.2,
+  },
+  stepNavRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+    marginBottom: 4,
+    alignItems: 'center',
+  },
+  backStepBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    backgroundColor: C.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+  },
+  backStepText: {
+    color: C.textSub,
+    fontWeight: '700',
+    fontSize: 14,
+  },
+
+  // ── Exchange rates
+  ratesRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  rateCard: {
+    flex: 1,
+    backgroundColor: C.inputBg,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    padding: 12,
+    alignItems: 'center',
+    gap: 4,
+  },
+  rateSymbol: {
+    fontSize: 20,
+    color: C.orange,
+    fontWeight: '800',
+  },
+  rateName: {
+    fontSize: 10,
+    color: C.textSub,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  rateInput: {
+    color: C.text,
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: C.cardBorder,
+    paddingBottom: 4,
+    width: '100%',
+    ...(IS_WEB ? { outlineWidth: 0 } : {}),
+  },
+  rateEquals: {
+    fontSize: 11,
+    color: C.textMuted,
+    marginTop: 2,
+  },
+
+  // ── Charge rows
+  chargeRow: {
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: C.inputBg,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    padding: 14,
+    marginBottom: 10,
+    alignItems: 'flex-start',
+  },
+  chargeBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: C.orangeDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 28,
+  },
+  chargeBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: C.orange,
+  },
+  chargeAmountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: C.cardBorder,
+    marginTop: 4,
+  },
+  chargeAmountLabel: {
+    fontSize: 10,
+    color: C.textMuted,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  chargeAmountVal: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: C.green,
+  },
+  chargeRemove: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(248,81,73,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 28,
+  },
+  addChargeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: C.orangeDim,
+    borderStyle: 'dashed',
+    marginBottom: 4,
+  },
+  addChargeTxt: {
+    color: C.orange,
+    fontWeight: '700',
+    fontSize: 14,
+  },
+
+  // ── Total card
+  totalCard: {
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.2)',
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalLabel: {
+    fontSize: 10,
+    color: C.textSub,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  totalSub: {
+    fontSize: 11,
+    color: C.textMuted,
+    marginTop: 3,
+  },
+  totalAmt: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: C.orange,
+    letterSpacing: -1,
+  },
+});

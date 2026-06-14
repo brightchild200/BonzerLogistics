@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Attendance History - Logistics Pro</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "tertiary": "#495369",
+                      "on-secondary-fixed": "#001d34",
+                      "on-primary-container": "#e7edff",
+                      "secondary-container": "#61b4fd",
+                      "on-background": "#191c1e",
+                      "outline-variant": "#c2c6d4",
+                      "on-surface-variant": "#424752",
+                      "surface-container": "#eceef1",
+                      "on-error": "#ffffff",
+                      "tertiary-fixed-dim": "#bcc6e1",
+                      "surface-container-high": "#e6e8eb",
+                      "tertiary-fixed": "#d8e2fd",
+                      "error": "#ba1a1a",
+                      "background": "#f7f9fc",
+                      "primary-fixed-dim": "#a8c8ff",
+                      "on-surface": "#191c1e",
+                      "status-new": "#206BC4",
+                      "outline": "#727783",
+                      "inverse-surface": "#2d3133",
+                      "tertiary-container": "#616b82",
+                      "primary-fixed": "#d6e3ff",
+                      "primary": "#0052a1",
+                      "status-contacted": "#6366F1",
+                      "on-primary-fixed-variant": "#00468b",
+                      "surface-variant": "#e0e3e6",
+                      "inverse-primary": "#a8c8ff",
+                      "surface-container-low": "#f2f4f7",
+                      "status-won": "#10B981",
+                      "secondary-fixed": "#cfe5ff",
+                      "surface": "#f7f9fc",
+                      "surface-dim": "#d8dadd",
+                      "secondary": "#00629d",
+                      "surface-tint": "#005db5",
+                      "surface-container-highest": "#e0e3e6",
+                      "status-lost": "#EF4444",
+                      "on-tertiary": "#ffffff",
+                      "inverse-on-surface": "#eff1f4",
+                      "on-secondary-container": "#004470",
+                      "on-secondary-fixed-variant": "#004a78",
+                      "on-tertiary-fixed": "#111b2f",
+                      "secondary-fixed-dim": "#99cbff",
+                      "on-primary-fixed": "#001b3d",
+                      "on-tertiary-container": "#e8edff",
+                      "on-primary": "#ffffff",
+                      "surface-container-lowest": "#ffffff",
+                      "status-followup": "#F59E0B",
+                      "on-tertiary-fixed-variant": "#3d475c",
+                      "slate-text": "#475569",
+                      "on-secondary": "#ffffff",
+                      "surface-bright": "#f7f9fc",
+                      "border-subtle": "#E2E8F0",
+                      "on-error-container": "#93000a",
+                      "primary-container": "#206bc4",
+                      "error-container": "#ffdad6"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "sidebar-width": "260px",
+                      "stack-sm": "0.5rem",
+                      "stack-md": "1rem",
+                      "stack-lg": "2rem",
+                      "gutter": "1.5rem",
+                      "container-padding": "2rem"
+              },
+              "fontFamily": {
+                      "mono-data": ["Inter"],
+                      "label-md": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "label-caps": ["Inter"],
+                      "headline-sm": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "body-md": ["Inter"],
+                      "headline-lg": ["Inter"],
+                      "body-sm": ["Inter"]
+              },
+              "fontSize": {
+                      "mono-data": ["13px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+                      "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                      "headline-sm": ["18px", {"lineHeight": "26px", "fontWeight": "600"}],
+                      "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}]
+              }
+            },
+          },
+        }
+      </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-pill {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- Sidebar Navigation -->
+<aside class="fixed left-0 top-0 h-full w-[260px] bg-surface dark:bg-inverse-surface border-r border-border-subtle dark:border-outline-variant flex flex-col py-6 px-4 z-50">
+<div class="mb-10 px-4">
+<h1 class="text-headline-md font-headline-md font-bold text-primary dark:text-inverse-primary">Logistics Pro</h1>
+<p class="text-label-md font-label-md text-on-surface-variant">Sales Management</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary transition-colors duration-200 cursor-pointer rounded-lg hover:bg-surface-container-high" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-label-md font-label-md">Dashboard</span>
+</a>
+<!-- Active Tab: Attendance -->
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-lg font-bold transition-colors duration-200 cursor-pointer" href="#">
+<span class="material-symbols-outlined active-pill" data-icon="location_on">location_on</span>
+<span class="text-label-md font-label-md">Attendance</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary transition-colors duration-200 cursor-pointer rounded-lg hover:bg-surface-container-high" href="#">
+<span class="material-symbols-outlined" data-icon="person_search">person_search</span>
+<span class="text-label-md font-label-md">Leads</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary transition-colors duration-200 cursor-pointer rounded-lg hover:bg-surface-container-high" href="#">
+<span class="material-symbols-outlined" data-icon="event_repeat">event_repeat</span>
+<span class="text-label-md font-label-md">Follow-Ups</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary transition-colors duration-200 cursor-pointer rounded-lg hover:bg-surface-container-high" href="#">
+<span class="material-symbols-outlined" data-icon="route">route</span>
+<span class="text-label-md font-label-md">Customer Visits</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary transition-colors duration-200 cursor-pointer rounded-lg hover:bg-surface-container-high" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="text-label-md font-label-md">Profile</span>
+</a>
+</nav>
+<div class="mt-auto pt-6 border-t border-border-subtle space-y-1">
+<button class="w-full bg-primary text-on-primary py-2.5 px-4 rounded-lg font-bold text-label-md flex items-center justify-center gap-2 mb-6 hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined" style="font-size: 20px;">add</span>
+                New Lead
+            </button>
+<div class="opacity-60 grayscale">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant cursor-not-allowed" href="#">
+<span class="material-symbols-outlined" data-icon="rocket_launch">rocket_launch</span>
+<span class="text-label-md font-label-md">Future Modules</span>
+</a>
+</div>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary transition-colors duration-200 cursor-pointer rounded-lg hover:bg-surface-container-high" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-label-md font-label-md">Settings</span>
+</a>
+</div>
+</aside>
+<!-- Top Navigation Bar -->
+<header class="sticky top-0 z-40 w-full ml-[260px] max-w-[calc(100%-260px)] bg-surface-container-lowest dark:bg-surface-dim border-b border-border-subtle dark:border-outline-variant shadow-sm flex items-center justify-between px-gutter py-3">
+<div class="flex items-center gap-4 w-1/2">
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline" style="font-size: 20px;">search</span>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 pl-10 pr-4 text-body-md focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" placeholder="Search logistics logs..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all scale-95 active:scale-100">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all scale-95 active:scale-100">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+</button>
+</div>
+<div class="flex items-center gap-3 pl-6 border-l border-border-subtle">
+<div class="text-right">
+<p class="text-label-md font-bold text-on-surface leading-tight">Alex Marshall</p>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Manager</p>
+</div>
+<div class="h-9 w-9 rounded-full bg-primary-fixed overflow-hidden border border-border-subtle">
+<img alt="Manager Profile" class="w-full h-full object-cover" data-alt="A professional headshot of a middle-aged male sales manager with a confident expression, wearing a crisp navy blue suit and a white shirt. The background is a blurred corporate office setting with soft, high-key lighting that emphasizes a clean and modern professional atmosphere. The image is crisp, with natural skin tones and a shallow depth of field." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDCtmM7FGGLxLxmVrDF3sOWGy40rpZVJPj5t9VqH7_ixx8eWrO_aPU9i2zNBwPfMyn0b2qQFME5YP0AAl8YTbrSmw_-3w4LaA4RKCZ2lIVskPmR3WDjkCSBQw42hSfGqqGdRiaEVnGm6qQSuxuQhM83Eg8fxSY0x2hOK8t5Gh7QNhR1GPoQofbv9PryCXD4Pxoj7zXUJwxHtNbY5p_4rDFv_ptTPNwpjQsnCDFPuXbCE9e_Jvqc7eyBS85KirC98hkIdr3ZfX3-UeE"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-[260px] p-gutter min-h-[calc(100vh-64px)]">
+<!-- Page Header -->
+<div class="flex items-end justify-between mb-stack-lg">
+<div>
+<nav class="flex items-center gap-2 text-label-md text-on-surface-variant mb-2">
+<span>Dashboard</span>
+<span class="material-symbols-outlined text-[14px]">chevron_right</span>
+<span class="text-primary font-bold">Attendance History</span>
+</nav>
+<h2 class="text-headline-lg font-headline-lg text-on-surface">Attendance History</h2>
+</div>
+<div class="flex items-center gap-stack-md">
+<div class="bg-surface-container-lowest border border-border-subtle px-4 py-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-primary" style="font-size: 20px;">calendar_today</span>
+<span class="text-body-md font-medium text-slate-text">Oct 1, 2023 - Oct 31, 2023</span>
+<span class="material-symbols-outlined text-outline" style="font-size: 20px;">keyboard_arrow_down</span>
+</div>
+<button class="flex items-center gap-2 bg-surface-container-lowest border border-border-subtle px-4 py-2 rounded-lg text-body-md font-bold text-slate-text hover:bg-surface-container-low transition-all">
+<span class="material-symbols-outlined" style="font-size: 20px;">download</span>
+                    Export CSV
+                </button>
+</div>
+</div>
+<!-- Summary Cards Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-stack-lg">
+<div class="bg-surface-container-lowest p-6 rounded-xl border border-border-subtle">
+<div class="flex items-center justify-between mb-4">
+<span class="text-label-caps text-on-surface-variant uppercase">Total Days Worked</span>
+<div class="p-2 bg-primary/10 rounded-lg">
+<span class="material-symbols-outlined text-primary" data-icon="work">work</span>
+</div>
+</div>
+<p class="text-headline-md font-headline-md text-on-surface">22</p>
+<div class="mt-2 flex items-center gap-1 text-status-won text-label-md">
+<span class="material-symbols-outlined text-[16px]">trending_up</span>
+<span>2 days vs last month</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl border border-border-subtle">
+<div class="flex items-center justify-between mb-4">
+<span class="text-label-caps text-on-surface-variant uppercase">Avg Check-in</span>
+<div class="p-2 bg-secondary-container/10 rounded-lg">
+<span class="material-symbols-outlined text-secondary" data-icon="schedule">schedule</span>
+</div>
+</div>
+<p class="text-headline-md font-headline-md text-on-surface">08:45 AM</p>
+<div class="mt-2 flex items-center gap-1 text-status-won text-label-md">
+<span class="material-symbols-outlined text-[16px]">check_circle</span>
+<span>Highly Consistent</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl border border-border-subtle">
+<div class="flex items-center justify-between mb-4">
+<span class="text-label-caps text-on-surface-variant uppercase">Total Hours</span>
+<div class="p-2 bg-tertiary-fixed/30 rounded-lg">
+<span class="material-symbols-outlined text-tertiary" data-icon="hourglass_empty">hourglass_empty</span>
+</div>
+</div>
+<p class="text-headline-md font-headline-md text-on-surface">176h 40m</p>
+<div class="mt-2 flex items-center gap-1 text-on-surface-variant text-label-md">
+<span class="material-symbols-outlined text-[16px]">history</span>
+<span>Avg 8.03h per day</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl border border-border-subtle">
+<div class="flex items-center justify-between mb-4">
+<span class="text-label-caps text-on-surface-variant uppercase">On-time Rate</span>
+<div class="p-2 bg-status-won/10 rounded-lg">
+<span class="material-symbols-outlined text-status-won" data-icon="verified">verified</span>
+</div>
+</div>
+<p class="text-headline-md font-headline-md text-on-surface">94%</p>
+<div class="mt-2 w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
+<div class="bg-status-won h-full" style="width: 94%"></div>
+</div>
+</div>
+</div>
+<!-- Data Table Container -->
+<div class="bg-surface-container-lowest rounded-xl border border-border-subtle overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-border-subtle">
+<th class="px-6 py-4 text-label-caps text-on-surface-variant uppercase">Date</th>
+<th class="px-6 py-4 text-label-caps text-on-surface-variant uppercase">Check-in</th>
+<th class="px-6 py-4 text-label-caps text-on-surface-variant uppercase">Check-out</th>
+<th class="px-6 py-4 text-label-caps text-on-surface-variant uppercase">Duration</th>
+<th class="px-6 py-4 text-label-caps text-on-surface-variant uppercase">Location</th>
+<th class="px-6 py-4 text-label-caps text-on-surface-variant uppercase">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-border-subtle">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="px-6 py-4">
+<p class="text-body-md font-bold text-on-surface">Oct 24, 2023</p>
+<p class="text-label-md text-on-surface-variant">Tuesday</p>
+</td>
+<td class="px-6 py-4 text-body-md text-slate-text">08:30 AM</td>
+<td class="px-6 py-4 text-body-md text-slate-text">05:45 PM</td>
+<td class="px-6 py-4">
+<span class="bg-surface-container px-2.5 py-1 rounded-lg text-mono-data font-mono-data text-on-surface">9h 15m</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-start gap-3">
+<div class="mt-1">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">location_on</span>
+</div>
+<div>
+<p class="text-body-sm font-bold text-on-surface leading-tight">Terminal 4, Port of New Jersey</p>
+<p class="text-mono-data text-on-surface-variant text-[11px] mt-0.5">40.6710° N, 74.1509° W</p>
+<a class="text-primary text-label-md font-bold hover:underline mt-1 inline-block" href="#">View Map</a>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-label-md font-bold bg-status-won/10 text-status-won border border-status-won/20">
+                                    On Time
+                                </span>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="px-6 py-4">
+<p class="text-body-md font-bold text-on-surface">Oct 23, 2023</p>
+<p class="text-label-md text-on-surface-variant">Monday</p>
+</td>
+<td class="px-6 py-4 text-body-md text-status-lost font-bold">09:15 AM</td>
+<td class="px-6 py-4 text-body-md text-slate-text">06:00 PM</td>
+<td class="px-6 py-4">
+<span class="bg-surface-container px-2.5 py-1 rounded-lg text-mono-data font-mono-data text-on-surface">8h 45m</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-start gap-3">
+<div class="mt-1">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">location_on</span>
+</div>
+<div>
+<p class="text-body-sm font-bold text-on-surface leading-tight">Regional Distribution Center</p>
+<p class="text-mono-data text-on-surface-variant text-[11px] mt-0.5">41.8781° N, 87.6298° W</p>
+<a class="text-primary text-label-md font-bold hover:underline mt-1 inline-block" href="#">View Map</a>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-label-md font-bold bg-status-followup/10 text-status-followup border border-status-followup/20">
+                                    Late
+                                </span>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="px-6 py-4">
+<p class="text-body-md font-bold text-on-surface">Oct 20, 2023</p>
+<p class="text-label-md text-on-surface-variant">Friday</p>
+</td>
+<td class="px-6 py-4 text-body-md text-slate-text">08:45 AM</td>
+<td class="px-6 py-4 text-body-md text-slate-text">05:30 PM</td>
+<td class="px-6 py-4">
+<span class="bg-surface-container px-2.5 py-1 rounded-lg text-mono-data font-mono-data text-on-surface">8h 45m</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-start gap-3">
+<div class="mt-1">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">location_on</span>
+</div>
+<div>
+<p class="text-body-sm font-bold text-on-surface leading-tight">Main HQ Lobby</p>
+<p class="text-mono-data text-on-surface-variant text-[11px] mt-0.5">34.0522° N, 118.2437° W</p>
+<a class="text-primary text-label-md font-bold hover:underline mt-1 inline-block" href="#">View Map</a>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-label-md font-bold bg-status-won/10 text-status-won border border-status-won/20">
+                                    On Time
+                                </span>
+</td>
+</tr>
+<!-- Row 4 (Excused) -->
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="px-6 py-4">
+<p class="text-body-md font-bold text-on-surface">Oct 19, 2023</p>
+<p class="text-label-md text-on-surface-variant">Thursday</p>
+</td>
+<td class="px-6 py-4 text-body-md text-slate-text">-- : --</td>
+<td class="px-6 py-4 text-body-md text-slate-text">-- : --</td>
+<td class="px-6 py-4">
+<span class="text-on-surface-variant text-label-md italic">Medical Leave</span>
+</td>
+<td class="px-6 py-4 text-on-surface-variant italic text-body-sm">Residential Office</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-label-md font-bold bg-secondary-container/10 text-secondary border border-secondary/20">
+                                    Excused
+                                </span>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="px-6 py-4">
+<p class="text-body-md font-bold text-on-surface">Oct 18, 2023</p>
+<p class="text-label-md text-on-surface-variant">Wednesday</p>
+</td>
+<td class="px-6 py-4 text-body-md text-slate-text">08:22 AM</td>
+<td class="px-6 py-4 text-body-md text-slate-text">05:15 PM</td>
+<td class="px-6 py-4">
+<span class="bg-surface-container px-2.5 py-1 rounded-lg text-mono-data font-mono-data text-on-surface">8h 53m</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-start gap-3">
+<div class="mt-1">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">location_on</span>
+</div>
+<div>
+<p class="text-body-sm font-bold text-on-surface leading-tight">East Coast Logistics Hub</p>
+<p class="text-mono-data text-on-surface-variant text-[11px] mt-0.5">39.9526° N, 75.1652° W</p>
+<a class="text-primary text-label-md font-bold hover:underline mt-1 inline-block" href="#">View Map</a>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-label-md font-bold bg-status-won/10 text-status-won border border-status-won/20">
+                                    On Time
+                                </span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="px-6 py-4 bg-surface-container-low flex items-center justify-between">
+<span class="text-body-sm text-on-surface-variant">Showing 1-10 of 22 entries</span>
+<div class="flex items-center gap-2">
+<button class="p-2 border border-border-subtle rounded-lg text-on-surface-variant hover:bg-surface-container transition-all disabled:opacity-50" disabled="">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<div class="flex items-center gap-1">
+<button class="w-10 h-10 flex items-center justify-center rounded-lg bg-primary text-on-primary font-bold text-label-md">1</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-surface-container-high transition-all text-on-surface-variant font-medium text-label-md">2</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-surface-container-high transition-all text-on-surface-variant font-medium text-label-md">3</button>
+</div>
+<button class="p-2 border border-border-subtle rounded-lg text-on-surface-variant hover:bg-surface-container transition-all">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Location Metadata Visual Block (Static Map Preview Examples) -->
+<div class="mt-stack-lg grid grid-cols-1 md:grid-cols-2 gap-gutter">
+<div class="bg-surface-container-lowest rounded-xl border border-border-subtle p-stack-md flex flex-col">
+<div class="h-32 w-full rounded-lg bg-surface-container-high relative overflow-hidden mb-4">
+<!-- Placeholder Map Image -->
+<img alt="Map View New Jersey" class="w-full h-full object-cover grayscale opacity-80" data-alt="A stylized digital map interface showing the Port of New Jersey terminal areas. The map uses a minimalist, corporate color scheme with shades of slate gray, navy blue, and white. Clean UI markers indicate logistics hubs and transit routes, with a primary blue pin highlighting 'Terminal 4'. The lighting is bright and clear, emphasizing technical precision and navigational utility." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA8LzgHOixZ4ufFaMJeVUequGqBKMxGrhq_WLx4oBXQyDxynIJqCQB6Hcw4_3sacR1sbwwjrYZz4-2Y1WBtsTqbSxudEzZzzCzS1VfRnw9_OJHO_My-mxADO7QES-qRPNwxwDWM1F3LaDpiYnrHa61lmDoE85lCCaLv6d2qV5h2Ge-WcsX64tumSx7Xh9hDhY6TOMZn2Bx7KsDyAskboIIXO7lw6t-amVNhAZXXjCm7ezArrpRqvoAVOM8XUvJjKcl4RCLROYf4Z0s"/>
+<div class="absolute inset-0 bg-primary/10 flex items-center justify-center">
+<div class="bg-primary text-on-primary p-2 rounded-full shadow-lg">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">location_on</span>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between">
+<div>
+<h4 class="text-body-md font-bold text-on-surface">Last Check-in Detail</h4>
+<p class="text-body-sm text-on-surface-variant">Terminal 4, Elizabeth, NJ 07201</p>
+</div>
+<button class="text-primary font-bold text-label-md flex items-center gap-1 hover:underline">
+                        Launch GPS
+                        <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+</button>
+</div>
+</div>
+<div class="bg-surface-container-lowest rounded-xl border border-border-subtle p-stack-md flex flex-col">
+<div class="h-32 w-full rounded-lg bg-surface-container-high relative overflow-hidden mb-4">
+<!-- Placeholder Map Image -->
+<img alt="Map View Chicago" class="w-full h-full object-cover grayscale opacity-80" data-alt="A clean, professional digital map representation of a suburban distribution park area in Illinois. The visual style is modern and architectural, utilizing a professional palette of cool grays and soft blues. Logistics warehouses are clearly outlined, with a distinct blue waypoint marking the 'Regional Distribution Center'. The aesthetic is sharp, clean, and optimized for an enterprise CRM dashboard." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAry16ZkrM7xBxS7pb_RTXf53aa0VHAi58FOy46La9YRuEoXBIlsH4uZHqnoD_RkltocmeUziyrJjZZycb8ne3qMeMSDJ4KLqFI3wU9cwL18gQ7kSbFRb2ko_hhnQ0Sc364pfa2k1m9METsd2nQdiyiMRi2tccxnbt0NpGxOSZmDgjeurxaTAU51gxLUcRxJVKghPI0liPdhakddNxSq2uGRDgY22PKV_pMO8g2Etul7aSzygX2BdHaGPBBVM_nwLThcbdX3LuKCQs"/>
+<div class="absolute inset-0 bg-primary/10 flex items-center justify-center">
+<div class="bg-primary text-on-primary p-2 rounded-full shadow-lg">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">location_on</span>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between">
+<div>
+<h4 class="text-body-md font-bold text-on-surface">Recent Transit Point</h4>
+<p class="text-body-sm text-on-surface-variant">700 Logistics Dr, Chicago, IL 60607</p>
+</div>
+<button class="text-primary font-bold text-label-md flex items-center gap-1 hover:underline">
+                        Launch GPS
+                        <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Contextual FAB (Hidden as per rule for Attendance/History) -->
+<script>
+        // Micro-interaction for hover effects or row selection
+        document.querySelectorAll('tbody tr').forEach(row => {
+            row.addEventListener('click', () => {
+                // Toggle a subtle active state if needed
+                // console.log('Row selected');
+            });
+        });
+    </script>
+</body></html>
