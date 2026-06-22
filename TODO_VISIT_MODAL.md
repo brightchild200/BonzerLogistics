@@ -1,0 +1,58 @@
+# TODO_VISIT_MODAL
+
+- [x] Update `app/(tabs)/visits.tsx` Log Visit Modal:
+  - [x] Remove lat/long display; show only reverse-geocoded location address.
+  - [x] Replace customer selection rule:
+    - Existing customer => use `customer_id`
+    - New prospect => `customer_id = null` and fill `customer_name` (new field).
+    - Toggle UI: "Existing Customer" / "New Prospect" segmented control.
+  - [x] Add mandatory/optional fields:
+    - next followup date (mandatory) — validated as YYYY-MM-DD
+    - next followup time (optional) — validated as HH:MM if provided
+    - person spoke to name (mandatory)
+    - person contact / mobile (mandatory)
+    - email (mandatory, format validated)
+    - designation (mandatory)
+  - [x] Save all new fields into `sales_customer_visits` payload:
+    - `customer_id`, `customer_name`, `next_followup_date`, `next_followup_time`
+    - `contact_person_name`, `contact_person_mobile`, `contact_person_email`, `contact_person_designation`
+  - [x] Photo upload:
+    - [x] Show "Choose photo (site evidence)" message until photo is selected.
+    - [x] Show "✓ Photo selected — tap to change" after selection.
+    - [x] Preview image displayed after photo is chosen.
+    - [x] Image stored into bucket `customer-visit-photos/salesperson_{id}/{yyyy}/{mm}/visit_{visitId}_{epoch}.jpg`.
+  - [x] Form resets fully (all fields cleared) when modal reopens.
+  - [x] Add browser console msgs:
+    - `[visits] pickPhoto started`
+    - `[visits] photo selected { uri }`
+    - `[visits] photo pick canceled`
+    - `[visits] validation failed { errors }`
+    - `[visits] inserting sales_customer_visits payload`
+    - `[visits] DB insert success, id:`
+    - `[visits] uploading photo for visit`
+    - `[visits] photo uploaded: path`
+    - `[visits] photo upload failed, visit saved without photo`
+    - `[visits] submit error:`
+  - [x] Inline validation errors shown per field with red border + error text.
+  - [x] Added `FieldLabel` helper component with `*` indicator for required fields.
+  - [x] Added section dividers: "Contact Person" / "Next Follow-up" / "Visit Remarks".
+
+- [x] Update Visit list search/filter UI (in `app/(tabs)/visits.tsx`):
+  - [x] Filter icon button in search bar (turns blue when any filter is active).
+  - [x] Expandable filter panel with:
+    - Status chips: All / Planned / In Progress / Completed / Cancelled
+    - Customer name text filter input
+    - Date range filter (From / To, YYYY-MM-DD)
+  - [x] "Clear All" button resets all filters.
+  - [x] Client-side filtering applied on `visits` list combining: text search + status + customer name + date range.
+  - [x] `FilterState` interface added to types.
+
+- [ ] After changes:
+  - [ ] Run `npx tsc --noEmit --skipLibCheck` and confirm no type errors.
+  - [ ] Manually test on device/simulator:
+    - [ ] New prospect flow (customer_id = null, customer_name saved)
+    - [ ] Existing customer flow (customer_id set)
+    - [ ] Mandatory field validation (all 6 required fields blocked on submit)
+    - [ ] Follow-up date format validation
+    - [ ] Photo pick → preview → upload to storage bucket
+    - [ ] Filter by status, customer name, date range

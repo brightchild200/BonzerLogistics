@@ -54,11 +54,30 @@ function err(event: string, payload?: unknown) {
 // ─── GPS ──────────────────────────────────────────────────────────────────────
 
 async function getLocation(): Promise<{
-  lat: number;
-  lng: number;
+  lat: number | null;
+  lng: number | null;
   accuracy: number | null;
   address: string;
 }> {
+  // GPS acceptance threshold in meters (tune based on field results)
+  const MAX_ACCEPTABLE_ACCURACY_METERS = 50;
+
+  // Use a small helper to ensure we never accept (0,0) and reject poor accuracy.
+  function normalizeLocation(input: {
+    lat: number;
+    lng: number;
+    accuracy: number | null;
+    address: string;
+  }) {
+    const { lat, lng, accuracy, address } = input;
+    const isZero = lat === 0 && lng === 0;
+    const isAccuracyBad = typeof accuracy === 'number' && accuracy > MAX_ACCEPTABLE_ACCURACY_METERS;
+
+    if (isZero || isAccuracyBad) {
+      return { lat: null, lng: null, accuracy, address: isZero ? '' : address };
+    }
+    return { lat, lng, accuracy, address };
+  }
   dbg('getLocation → start', { platform: Platform.OS });
 
   // Web path
@@ -73,6 +92,7 @@ async function getLocation(): Promise<{
         async (pos) => {
           const { latitude: lat, longitude: lng, accuracy } = pos.coords;
           dbg('getLocation → GPS acquired (web)', { lat, lng, accuracy });
+
 
           let address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
           try {
@@ -90,14 +110,14 @@ async function getLocation(): Promise<{
             warn('getLocation → reverse-geocode failed (web); using raw coords', geocodeErr);
           }
 
-          resolve({ lat, lng, accuracy, address });
+          resolve(normalizeLocation({ lat, lng, accuracy, address }));
         },
         (posErr) => {
           warn('getLocation → geolocation.getCurrentPosition error (web)', {
             code: posErr.code,
             message: posErr.message,
           });
-          resolve({ lat: 0, lng: 0, accuracy: null, address: '' });
+          resolve(normalizeLocation({ lat: 0, lng: 0, accuracy: null, address: '' }));
         },
         { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 },
       );
@@ -119,10 +139,15 @@ async function getLocation(): Promise<{
     }
 
     const pos = await ExpoLocation.getCurrentPositionAsync({
-      accuracy: ExpoLocation.Accuracy.High,
+      accuracy:
+        ExpoLocation.Accuracy?.BestForNavigation ??
+        ExpoLocation.Accuracy?.Highest ??
+        ExpoLocation.Accuracy.High,
     });
+
     const { latitude: lat, longitude: lng, accuracy } = pos.coords;
     dbg('getLocation → GPS acquired (native)', { lat, lng, accuracy });
+
 
     // Reverse geocode via Expo
     let address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
@@ -276,11 +301,13 @@ export default function AttendanceScreen() {
         lng,
         accuracy,
         addressPreview: address ? address.slice(0, 80) : '(empty)',
-        usingFallback: lat === 0 && lng === 0,
+        usingFallback: lat == null || lng == null,
       });
 
-      if (lat === 0 && lng === 0) {
-        warn('handleCheckIn → GPS returned (0,0) — location unavailable; proceeding without coordinates');
+      if (lat == null || lng == null) {
+        warn('handleCheckIn → GPS rejected (poor accuracy or invalid coords); aborting check-in');
+        setError('Unable to capture a reliable GPS location. Move outdoors and try again.');
+        return;
       }
 
       const today = new Date().toISOString().split('T')[0];
@@ -291,8 +318,8 @@ export default function AttendanceScreen() {
         user_id: session.appUser?.id ?? null,
         attendance_date: today,
         check_in_at: checkInAt,
-        check_in_lat: lat,
-        check_in_lng: lng,
+        check_in_lat: lat as number,
+        check_in_lng: lng as number,
         check_in_accuracy_meters: accuracy,
         site_name: address ? address.split(',')[0].trim() : null,
         site_address: address || null,
@@ -300,7 +327,7 @@ export default function AttendanceScreen() {
         status: 'checked_in',
         approval_status: 'pending',
         device_info: Platform.OS,
-      } as Record<string, unknown>;
+      };
 
       dbg('handleCheckIn → inserting sales_attendance row', {
         attendance_date: payload.attendance_date,
@@ -358,11 +385,13 @@ export default function AttendanceScreen() {
         lat,
         lng,
         accuracy,
-        usingFallback: lat === 0 && lng === 0,
+        usingFallback: lat == null || lng == null,
       });
 
-      if (lat === 0 && lng === 0) {
-        warn('handleCheckOut → GPS returned (0,0); proceeding without checkout coordinates');
+      if (lat == null || lng == null) {
+        warn('handleCheckOut → GPS rejected (poor accuracy or invalid coords); aborting check-out');
+        setError('Unable to capture a reliable GPS location. Move outdoors and try again.');
+        return;
       }
 
       const checkOutAt = new Date().toISOString();

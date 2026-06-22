@@ -1,14 +1,24 @@
-# TODO - Attendance backend alignment
+# TODO (LogiSales)
 
-backend folder is just example and not the actual one 
+- [x] Update README.md with correct enquiry detail route and express-backend connection steps.
 
-- [x] Update backend `backend/routes/attendance.js` to use `sales_attendance` schema (sales_person_id, attendance_date, check_in_at/check_out_at, check_in_lat/check_in_lng, check_out_lat/check_out_lng, etc.).
-- [ ] Update frontend to call backend `/api/attendance/*` instead of direct Supabase calls (optional, but recommended to make backend authoritative).
 
-- [ ] Decide how to map `req.user.id` -> `sales_person_id` (use `req.user.id` for now unless a different mapping exists).
-- [ ] Fix/implement missing auth middleware `backend/middleware/auth.js` and auth route `backend/routes/auth.js` so protected endpoints work.
-
-- [ ] Add/adjust request payloads for check-in/check-out based on existing frontend payload.
-- [ ] Run backend tests (start server) and sanity-check with a manual curl/postman call.
-- [ ] Optionally update frontend to call backend `/api/attendance/*` instead of direct Supabase calls (if you want backend as single source of truth).
-
+- admin ka logic (admin ko sare salespersons ki attendacne dikhegi)
+- admin and sales manager ko sari enquiries dikhengi irrespective of salesperon along with the name of salesperon 
+- admin and sales manager ko sare visits dikhenge of all salespersns 
+- dashboard mein right side mein attendance dikhao
+- visits mein location access mat dikhao (for sales_person)
+- remove qoutation from salesperosn enquiry 
+- register page pe sales manager bhi dalo 
+- apply on email many roles 
+- admin and sales_manager target de sakte hai salesperson ko about no. of enquires and monthly sales , also visits 
+- salesperosn and sales_manager cna also trakcing the jobs but cannot upadte it ( view mode only) (future)
+- job no. pattern : BONLOG/mode_ka_2_char_code/financial yr/System-Wide Running Sequence Number (0001)
+- do kyc of the customer ( enquiry se leke job conversion ke bich meine )  reminder msgs k yeh nahi hua hai (profile section mein)
+- followup date (optional)
+- dashboard pe followup ka preview ( next day wale )
+- dashboard pe alerts like cs se ya koi bhi cross role activity ho rahi hai uske liye 
+- ek announcement bar (moving marquee) chahiye on top & admin can put msg on this 
+- enquireis mein assigned_user banan 
+- roles and user_roles table creation 
+- RPC-based dashboard aggregations and business workflows 

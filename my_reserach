@@ -1,3 +1,5 @@
+minimax-m2.1:cloud
+
 I’m checking the legacy schema for the full sales/activity surface now, then I’ll summarize the concrete gaps relative to your current shared schema and UI without hand-waving.
 
 Searched for regex `activity|tracking|followup|attendance|sales_person|notification_logs|reminder` (`**/existing_schema`), 90 results
@@ -185,3 +187,324 @@ now what poblem we are getting is when user clicks on the check in button on att
 but this issue persists it fails to recognize the user's role . why does that happens ??
 
 I want you to just search and find the root cause of this problem and possible solutiions to fix this issue
+
+
+
+Better Design (Recommended)
+
+Instead of storing contact details in visits, create:
+
+customer_contacts
+-----------------
+id
+customer_id
+name
+mobile
+email
+designation
+
+Then:
+
+sales_customer_visits
+---------------------
+contact_id
+
+Why?
+
+Same customer may have multiple contacts:
+
+ABC Ltd
+ ├── Purchase Manager
+ ├── Director
+ └── Plant Head
+
+But if you need a quick solution, storing directly in visit is acceptable.
+
+5. Add Followup Reference
+
+As discussed earlier:
+
+
+Backend is implemented but the frontend does NOT use it for attendance/enquiries/followups.
+
+Evidence from the app screens:
+
+app/(tabs)/attendance.tsx reads and writes directly to Supabase (supabase.from('sales_attendance')...insert/update/select) and does GPS validation in the client.
+app/(tabs)/leads.tsx uses Supabase directly (supabase.from('sales_persons')...select).
+app/(tabs)/enquiries.tsx uses Supabase directly (supabase.from('enquiries')...select).
+app/(tabs)/followups.tsx uses Supabase directly (supabase.from('sales_followups')...select/insert/update/delete).
+So: you can keep a backend if you want a secure API layer (server-side validations, hiding business logic, rate limiting, integrations), but in the current codebase it’s not being relied upon—your app is talking to Supabase directly.
+
+Conclusion:
+
+If your goal is security/business rules enforcement (e.g., GPS rules, duplicate check-in prevention), you should either:
+move those rules to the backend API and call it from the app, OR
+enforce them via Supabase RLS / DB constraints / Edge Functions.
+Merely having the backend folder alone won’t improve security unless the frontend routes actually use it and/or RLS is strict.
+
+
+If you've already decided that users can genuinely have multiple roles, then don't build more features on top of `users.role`. Move to a proper RBAC (Role-Based Access Control) model now, before the ERP gets bigger.
+
+## Step 1: Keep `users` table
+
+Remove dependency on:
+
+```sql
+users.role
+```
+
+You can keep the column temporarily for migration, but don't use it for permissions.
+
+Example:
+
+```sql
+users
+------
+id
+auth_user_id
+email
+full_name
+...
+```
+
+---
+
+## Step 2: Create `roles`
+
+```sql
+CREATE TABLE roles (
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    role_name VARCHAR(50) UNIQUE NOT NULL
+);
+```
+
+Seed:
+
+```sql
+INSERT INTO roles(role_name)
+VALUES
+('admin'),
+('sales_manager'),
+('sales_person'),
+('pricing'),
+('cs'),
+('operations'),
+('accounts');
+```
+
+---
+
+## Step 3: Create `user_roles`
+
+```sql
+CREATE TABLE user_roles (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+    user_id INTEGER NOT NULL
+        REFERENCES users(id) ON DELETE CASCADE,
+
+    role_id INTEGER NOT NULL
+        REFERENCES roles(id) ON DELETE CASCADE,
+
+    UNIQUE(user_id, role_id)
+);
+```
+
+Example:
+
+```text
+Priya
+
+Pricing
+CS
+```
+
+becomes:
+
+```text
+user_id=5 role_id=4
+user_id=5 role_id=5
+```
+
+---
+
+## Step 4: Sales Hierarchy
+
+Add manager relationship:
+
+```sql
+ALTER TABLE sales_persons
+ADD COLUMN manager_id INTEGER
+REFERENCES sales_persons(id);
+```
+
+Example:
+
+```text
+Rahul (Sales Manager)
+   ├─ Riya
+   ├─ Sana
+   └─ Amit
+```
+
+---
+
+## Step 5: Enquiry Assignment
+
+Add:
+
+```sql
+ALTER TABLE enquiries
+ADD COLUMN assigned_to_user_id INTEGER
+REFERENCES users(id);
+```
+
+Workflow:
+
+```text
+Sales Person
+      ↓
+Creates Enquiry
+      ↓
+Assigns to Pricing / CS
+      ↓
+Quotation
+```
+
+---
+
+## Step 6: Quotation Module
+
+Create:
+
+```text
+quotations
+quotation_items
+```
+
+Important fields:
+
+```text
+enquiry_id
+prepared_by_user_id
+approved_by_user_id
+```
+
+Now:
+
+```text
+Sales → Enquiry
+
+Pricing → Quotation
+
+CS → Quotation
+
+Admin → Quotation
+```
+
+all work naturally.
+
+---
+
+## Step 7: Customer Visit Module
+
+Keep the table we designed:
+
+```text
+sales_customer_visits
+```
+
+This tracks:
+
+* Customer visits
+* GPS
+* Photo proof
+* Outcomes
+* Follow-ups
+
+independent of attendance.
+
+---
+
+## Step 8: Enquiry Numbering
+
+Implement a global sequence:
+
+```text
+ENQ-000001
+ENQ-000002
+ENQ-000003
+```
+
+across the whole company.
+
+Not per salesperson.
+
+---
+
+## Step 9: Mode Codes
+
+Extend:
+
+```text
+mode_master
+```
+
+with:
+
+```text
+AI = Air Import
+AE = Air Export
+SI = Sea Import
+SE = Sea Export
+```
+
+This helps later with:
+
+```text
+AI-ENQ-000001
+SE-JOB-000123
+```
+
+---
+
+## Final Architecture
+
+```text
+Admin
+
+├── Sales Manager
+│      └── Sales Persons
+│
+├── Pricing
+│
+├── CS
+│
+├── Operations
+│
+└── Accounts
+```
+
+Workflow:
+
+```text
+Customer Visit
+      ↓
+Enquiry
+      ↓
+Assigned to Pricing / CS
+      ↓
+Quotation
+      ↓
+Customer Approval
+      ↓
+Job
+      ↓
+Operations
+      ↓
+Invoice
+      ↓
+Payment
+```
+
+This would be my recommended "Phase 1 stable architecture" before you continue building the rest of the ERP. It gives you multi-role users, sales hierarchy, quotation ownership, visit tracking, and a clean workflow without needing another major redesign later.

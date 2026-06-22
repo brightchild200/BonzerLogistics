@@ -35,9 +35,30 @@ router.post('/checkin', async (req, res, next) => {
     if (!sales_person_id) {
       return res.status(401).json({ error: 'Unauthorized: missing sales_person_id' });
     }
+
+    // Reject invalid/placeholder GPS.
     if (check_in_lat == null || check_in_lng == null) {
       return res.status(400).json({ error: 'GPS coordinates required (check_in_lat, check_in_lng)' });
     }
+
+    if (check_in_lat === 0 && check_in_lng === 0) {
+      return res.status(400).json({ error: 'Invalid GPS: (0,0) is not allowed' });
+    }
+
+    // Enforce accuracy threshold if provided.
+    const MAX_ACCEPTABLE_ACCURACY_METERS = 50;
+    if (
+      check_in_accuracy_meters != null &&
+      typeof check_in_accuracy_meters === 'number' &&
+      check_in_accuracy_meters > MAX_ACCEPTABLE_ACCURACY_METERS
+    ) {
+      return res.status(400).json({
+        error: 'GPS accuracy too low',
+        max_acceptable_accuracy_meters: MAX_ACCEPTABLE_ACCURACY_METERS,
+        got_accuracy_meters: check_in_accuracy_meters,
+      });
+    }
+
 
     const date = attendance_date || todayISODate();
     const ts = check_in_at || new Date().toISOString();
@@ -105,6 +126,23 @@ router.post('/checkout', async (req, res, next) => {
     const date = attendance_date || todayISODate();
     const checkoutTs = check_out_at || new Date().toISOString();
 
+    // Enforce basic validation for checkout coordinates.
+    const MAX_ACCEPTABLE_ACCURACY_METERS = 50;
+    if (check_out_lat === 0 && check_out_lng === 0) {
+      return res.status(400).json({ error: 'Invalid GPS: (0,0) is not allowed for checkout' });
+    }
+    if (
+      check_out_accuracy_meters != null &&
+      typeof check_out_accuracy_meters === 'number' &&
+      check_out_accuracy_meters > MAX_ACCEPTABLE_ACCURACY_METERS
+    ) {
+      return res.status(400).json({
+        error: 'GPS accuracy too low (checkout)',
+        max_acceptable_accuracy_meters: MAX_ACCEPTABLE_ACCURACY_METERS,
+        got_accuracy_meters: check_out_accuracy_meters,
+      });
+    }
+
     const updatePayload = {
       check_out_at: checkoutTs,
       status: status || 'checked_out',
@@ -112,6 +150,7 @@ router.post('/checkout', async (req, res, next) => {
       check_out_lng: check_out_lng ?? null,
       check_out_accuracy_meters: check_out_accuracy_meters ?? null,
     };
+
 
     const { data, error } = await supabase
       .from('sales_attendance')

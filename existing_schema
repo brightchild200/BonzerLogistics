@@ -404,8 +404,10 @@ CREATE TABLE public.sales_persons (
   bank_name character varying DEFAULT NULL::character varying,
   bank_account_no character varying DEFAULT NULL::character varying,
   ifsc_code character varying DEFAULT NULL::character varying,
+  manager_id integer,
   CONSTRAINT sales_persons_pkey PRIMARY KEY (id),
-  CONSTRAINT fk_sales_persons_user FOREIGN KEY (user_id) REFERENCES public.users(id)
+  CONSTRAINT fk_sales_persons_user FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT sales_persons_manager_id_fkey FOREIGN KEY (manager_id) REFERENCES public.sales_persons(id)
 );
 CREATE TABLE public.service_master (
   id integer GENERATED ALWAYS AS IDENTITY NOT NULL,
@@ -459,6 +461,7 @@ CREATE TABLE public.users (
   phone character varying DEFAULT NULL::character varying,
   last_login timestamp without time zone,
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  auth_user_id uuid UNIQUE,
   CONSTRAINT users_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.vendor_bills (
@@ -672,4 +675,52 @@ CREATE TABLE public.port_master (
   location_type character varying NOT NULL CHECK (location_type::text = ANY (ARRAY['SEA'::character varying, 'AIR'::character varying]::text[])),
   code character varying NOT NULL,
   CONSTRAINT port_master_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.sales_customer_visits (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  sales_person_id integer NOT NULL,
+  user_id integer,
+  customer_id integer,
+  job_id integer,
+  visit_type character varying NOT NULL DEFAULT 'customer'::character varying,
+  visit_start timestamp with time zone NOT NULL DEFAULT now(),
+  visit_end timestamp with time zone,
+  latitude numeric NOT NULL,
+  longitude numeric NOT NULL,
+  accuracy_meters numeric,
+  location_name character varying,
+  location_address text,
+  remarks text,
+  status character varying NOT NULL DEFAULT 'completed'::character varying CHECK (status::text = ANY (ARRAY['planned'::character varying, 'in_progress'::character varying, 'completed'::character varying, 'cancelled'::character varying]::text[])),
+  outcome character varying CHECK (outcome::text = ANY (ARRAY['converted'::character varying, 'followup'::character varying, 'not_interested'::character varying, 'quotation_sent'::character varying]::text[])),
+  photo_path character varying,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  customer_name character varying,
+  next_followup_date date NOT NULL,
+  next_followup_time time without time zone,
+  contact_person_name character varying NOT NULL,
+  contact_person_mobile character varying NOT NULL,
+  contact_person_email character varying NOT NULL,
+  contact_person_designation character varying NOT NULL,
+  followup_id bigint,
+  CONSTRAINT sales_customer_visits_pkey PRIMARY KEY (id),
+  CONSTRAINT sales_customer_visits_sales_person_id_fkey FOREIGN KEY (sales_person_id) REFERENCES public.sales_persons(id),
+  CONSTRAINT sales_customer_visits_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT sales_customer_visits_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer_master(id),
+  CONSTRAINT sales_customer_visits_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.jobs(id),
+  CONSTRAINT fk_visit_followup FOREIGN KEY (followup_id) REFERENCES public.sales_followups(id)
+);
+CREATE TABLE public.roles (
+  id integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+  role_name character varying NOT NULL UNIQUE,
+  CONSTRAINT roles_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.user_roles (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  user_id integer NOT NULL,
+  role_id integer NOT NULL,
+  CONSTRAINT user_roles_pkey PRIMARY KEY (id),
+  CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT user_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id)
 );

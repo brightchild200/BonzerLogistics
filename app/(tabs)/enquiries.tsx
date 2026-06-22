@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,9 @@ import {
   Platform,
   TextInput,
   ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -26,12 +29,27 @@ import {
   Package,
   MapPin,
   Truck,
+  X,
+  ChevronDown,
 } from 'lucide-react-native';
 
 import { supabase } from '@/lib/supabase';
 import { COLORS } from '@/lib/types';
 import { resolveSalespersonSession } from '@/lib/salesperson-session';
 import { StatusBadge } from '@/components/Badge';
+
+// Mode mapping (from mode_master table)
+const MODE_MAP: Record<number, string> = {
+  1: 'Sea Export',
+  2: 'Sea Import',
+  3: 'Air Export',
+  4: 'Air Import',
+};
+
+// Status options for filter
+const STATUS_OPTIONS = ['All', 'Pending', 'Confirmed', 'Cancelled', 'Completed'];
+// Mode options for filter
+const MODE_OPTIONS = ['All', 'Sea Export', 'Sea Import', 'Air Export', 'Air Import'];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +71,7 @@ type EnquiryRow = {
   job_id: number | null;
   created_at: string;
   updated_at: string;
+  mode_name?: string;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -79,6 +98,16 @@ export default function EnquiriesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState('');
   const [sessionError, setSessionError] = useState('');
+
+  // Filter states
+  const [filterCustomer, setFilterCustomer] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterMode, setFilterMode] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Filter modal visibility
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
 
   // ── Data loading ──────────────────────────────────────────────────────────
 
@@ -133,7 +162,13 @@ export default function EnquiriesScreen() {
         return;
       }
 
-      setEnquiries(data || []);
+      // Map mode_id to mode_name
+      const enquiriesWithMode = (data || []).map(enq => ({
+        ...enq,
+        mode_name: enq.mode_id ? MODE_MAP[enq.mode_id] || 'Unknown' : 'N/A',
+      }));
+
+      setEnquiries(enquiriesWithMode);
       dbg('loadData → complete', { count: data?.length ?? 0 });
     } catch (e: unknown) {
       err('loadData → unexpected exception', e);
@@ -144,6 +179,30 @@ export default function EnquiriesScreen() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Apply filters to enquiries
+  const filteredEnquiries = useMemo(() => {
+    return enquiries.filter(enquiry => {
+      // Customer name filter
+      if (filterCustomer && !enquiry.customer_name?.toLowerCase().includes(filterCustomer.toLowerCase())) {
+        return false;
+      }
+      // Date filter
+      if (filterDate) {
+        const enqDate = enquiry.enq_date ? new Date(enquiry.enq_date).toISOString().split('T')[0] : '';
+        if (enqDate !== filterDate) return false;
+      }
+      // Mode filter
+      if (filterMode !== 'All') {
+        if (enquiry.mode_name !== filterMode) return false;
+      }
+      // Status filter
+      if (filterStatus !== 'All') {
+        if (enquiry.status !== filterStatus) return false;
+      }
+      return true;
+    });
+  }, [enquiries, filterCustomer, filterDate, filterMode, filterStatus]);
 
   // ── Refresh ───────────────────────────────────────────────────────────────
 
@@ -180,24 +239,101 @@ export default function EnquiriesScreen() {
     alert('Excel export functionality will be implemented');
   }
 
-  function handlePrint() {
-    // TODO: Implement print functionality
-    alert('Print functionality will be implemented');
+  async function handlePrint(enquiry: EnquiryRow) {
+    // Generate printable content for the enquiry
+    const printContent = `
+ENQUIRY DETAILS
+===============
+Enquiry No: ${enquiry.enquiry_no || 'N/A'}
+Date: ${enquiry.enq_date ? new Date(enquiry.enq_date).toLocaleDateString() : 'N/A'}
+Customer: ${enquiry.customer_name || 'N/A'}
+Mode: ${enquiry.mode_name || 'N/A'}
+Status: ${enquiry.status || 'N/A'}
+Job ID: ${enquiry.job_id || 'N/A'}
+
+Route: ${enquiry.pol || 'N/A'} → ${enquiry.pod || 'N/A'}
+Commodity: ${enquiry.commodity || 'N/A'}
+Packages: ${enquiry.packages || '0'} ${enquiry.packages_unit || ''}
+Gross Weight: ${enquiry.gross_weight || '0'} ${enquiry.gross_weight_unit || ''}
+    `.trim();
+
+    // For web platform, use window.print
+    if (Platform.OS === 'web') {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head><title>Enquiry ${enquiry.enquiry_no || enquiry.id}</title></head>
+            <body>
+              <pre style="font-family: monospace; font-size: 12px; white-space: pre-wrap;">${printContent}</pre>
+              <script>window.onload = function() { window.print(); window.close(); }</script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      }
+    } else {
+      // For mobile, show alert with content (print requires native modules)
+      Alert.alert(
+        'Print Enquiry',
+        printContent,
+        [{ text: 'OK' }]
+      );
+    }
   }
 
-  // ── Derived state ─────────────────────────────────────────────────────────
+  async function handleCancelEnquiry(enquiry: EnquiryRow) {
+    if (enquiry.status === 'Cancelled') {
+      Alert.alert('Already Cancelled', 'This enquiry is already cancelled.');
+      return;
+    }
 
-  const filteredEnquiries = enquiries.filter(enquiry => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      (enquiry.customer_name?.toLowerCase().includes(query)) ||
-      (enquiry.enquiry_no?.toLowerCase().includes(query)) ||
-      (enquiry.commodity?.toLowerCase().includes(query)) ||
-      (enquiry.pol?.toLowerCase().includes(query)) ||
-      (enquiry.pod?.toLowerCase().includes(query))
+    Alert.prompt(
+      'Cancel Enquiry',
+      'Please enter a reason for cancellation:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async (remark?: string) => {
+            try {
+              const { error: updateError } = await supabase
+                .from('enquiries')
+                .update({
+                  status: 'Cancelled',
+                  cancel_remark: remark || 'Cancelled by user',
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', enquiry.id);
+
+              if (updateError) {
+                Alert.alert('Error', 'Failed to cancel enquiry: ' + updateError.message);
+                return;
+              }
+
+              // Refresh data
+              loadData();
+              Alert.alert('Success', 'Enquiry cancelled successfully.');
+            } catch (e) {
+              Alert.alert('Error', 'Failed to cancel enquiry.');
+            }
+          },
+        },
+      ],
+      'plain-text'
     );
-  });
+  }
+
+  function clearFilters() {
+    setFilterCustomer('');
+    setFilterDate('');
+    setFilterMode('All');
+    setFilterStatus('All');
+  }
+
+  function hasActiveFilters() {
+    return filterCustomer !== '' || filterDate !== '' || filterMode !== 'All' || filterStatus !== 'All';
+  }
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -229,10 +365,87 @@ export default function EnquiriesScreen() {
             placeholderTextColor={COLORS.textLight}
           />
         </View>
-        <TouchableOpacity style={styles.filterBtn}>
-          <Filter size={18} color={COLORS.text} />
+        <TouchableOpacity
+          style={[styles.filterBtn, showFilters && styles.filterBtnActive]}
+          onPress={() => setShowFilters(!showFilters)}
+        >
+          <Filter size={18} color={showFilters ? COLORS.white : COLORS.text} />
         </TouchableOpacity>
       </View>
+
+      {/* Filter Section */}
+      {showFilters && (
+        <View style={styles.filtersSection}>
+          <View style={styles.filterRow}>
+            <View style={styles.filterField}>
+              <Text style={styles.filterLabel}>Customer</Text>
+              <TextInput
+                style={styles.filterInput}
+                placeholder="Customer name"
+                value={filterCustomer}
+                onChangeText={setFilterCustomer}
+                placeholderTextColor={COLORS.textLight}
+              />
+            </View>
+            <View style={styles.filterField}>
+              <Text style={styles.filterLabel}>Date</Text>
+              <TextInput
+                style={styles.filterInput}
+                placeholder="YYYY-MM-DD"
+                value={filterDate}
+                onChangeText={setFilterDate}
+                placeholderTextColor={COLORS.textLight}
+              />
+            </View>
+          </View>
+          <View style={styles.filterRow}>
+            <View style={styles.filterField}>
+              <Text style={styles.filterLabel}>Mode</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.chipRow}>
+                  {MODE_OPTIONS.map(mode => (
+                    <TouchableOpacity
+                      key={mode}
+                      style={[styles.chip, filterMode === mode && styles.chipActive]}
+                      onPress={() => setFilterMode(mode)}
+                    >
+                      <Text style={[styles.chipText, filterMode === mode && styles.chipTextActive]}>
+                        {mode}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+          <View style={styles.filterRow}>
+            <View style={styles.filterField}>
+              <Text style={styles.filterLabel}>Status</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.chipRow}>
+                  {STATUS_OPTIONS.map(status => (
+                    <TouchableOpacity
+                      key={status}
+                      style={[styles.chip, filterStatus === status && styles.chipActive]}
+                      onPress={() => setFilterStatus(status)}
+                    >
+                      <Text style={[styles.chipText, filterStatus === status && styles.chipTextActive]}>
+                        {status}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+          {hasActiveFilters() && (
+            <TouchableOpacity style={styles.clearFilterBtn} onPress={clearFilters}>
+              <X size={14} color={COLORS.danger} />
+              <Text style={styles.clearFilterText}>Clear Filters</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {/* Action Bar */}
       <View style={styles.actionBar}>
@@ -282,11 +495,11 @@ export default function EnquiriesScreen() {
             <Package size={48} color={COLORS.textLight} />
             <Text style={styles.emptyTitle}>No enquiries found</Text>
             <Text style={styles.emptySubtitle}>
-              {searchQuery
-                ? 'Try adjusting your search query'
+              {searchQuery || hasActiveFilters()
+                ? 'Try adjusting your search or filters'
                 : 'Create your first enquiry to get started'}
             </Text>
-            {!searchQuery && (
+            {!searchQuery && !hasActiveFilters() && (
               <TouchableOpacity style={styles.emptyBtn} onPress={handleCreateEnquiry}>
                 <Plus size={16} color={COLORS.white} />
                 <Text style={styles.emptyBtnText}>Create Enquiry</Text>
@@ -294,63 +507,68 @@ export default function EnquiriesScreen() {
             )}
           </View>
         ) : (
-          <View style={styles.listContainer}>
+          <View style={styles.tableContainer}>
+            {/* Table Header */}
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderCell, styles.colDate]}>Date</Text>
+              <Text style={[styles.tableHeaderCell, styles.colEnqNo]}>Enquiry No.</Text>
+              <Text style={[styles.tableHeaderCell, styles.colCustomer]}>Customer</Text>
+              <Text style={[styles.tableHeaderCell, styles.colMode]}>Mode</Text>
+              <Text style={[styles.tableHeaderCell, styles.colStatus]}>Status</Text>
+              <Text style={[styles.tableHeaderCell, styles.colJobId]}>Job ID</Text>
+              <Text style={[styles.tableHeaderCell, styles.colActions]}>Actions</Text>
+            </View>
+
+            {/* Table Body */}
             {filteredEnquiries.map((enquiry) => (
-              <View key={enquiry.id} style={styles.enquiryCard}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.enquiryInfo}>
-                    <Text style={styles.enquiryNo}>
-                      {enquiry.enquiry_no || `ENQ-${enquiry.id.toString().padStart(5, '0')}`}
-                    </Text>
-                    <Text style={styles.enquiryDate}>
-                      {enquiry.enq_date
-                        ? new Date(enquiry.enq_date).toLocaleDateString()
-                        : new Date(enquiry.created_at).toLocaleDateString()}
-                    </Text>
-                  </View>
+              <View key={enquiry.id} style={styles.tableRow}>
+                <Text style={[styles.tableCell, styles.colDate]}>
+                  {enquiry.enq_date
+                    ? new Date(enquiry.enq_date).toLocaleDateString()
+                    : '-'}
+                </Text>
+                <Text style={[styles.tableCell, styles.colEnqNo]}>
+{enquiry.enquiry_no || `ENQ-${enquiry.id.toString().padStart(6, '0')}`}
+                </Text>
+                <Text style={[styles.tableCell, styles.colCustomer]} numberOfLines={1}>
+                  {enquiry.customer_name || 'Unknown'}
+                </Text>
+                <Text style={[styles.tableCell, styles.colMode]}>
+                  {enquiry.mode_name || 'N/A'}
+                </Text>
+                <View style={[styles.tableCell, styles.colStatus]}>
                   <StatusBadge status={enquiry.status || 'Pending'} />
                 </View>
-
-                <View style={styles.cardBody}>
-                  <View style={styles.customerInfo}>
-                    <Text style={styles.customerName}>{enquiry.customer_name || 'Unknown Customer'}</Text>
-                    <Text style={styles.route} numberOfLines={1}>
-                      <MapPin size={12} color={COLORS.textLight} style={styles.icon} />
-                      {enquiry.pol || 'N/A'} → {enquiry.pod || 'N/A'}
-                    </Text>
+                <Text style={[styles.tableCell, styles.colJobId]}>
+                  {enquiry.job_id ? `JOB-${enquiry.job_id.toString().padStart(5, '0')}` : '-'}
+                </Text>
+                <View style={[styles.tableCell, styles.colActions]}>
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => handleViewEnquiry(enquiry.id)}
+                    >
+                      <Eye size={12} color={COLORS.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => handleEditEnquiry(enquiry.id)}
+                    >
+                      <Edit size={12} color={COLORS.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => handleCancelEnquiry(enquiry)}
+                    >
+                      <XCircle size={12} color={enquiry.status === 'Cancelled' ? COLORS.textLight : COLORS.danger} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => handlePrint(enquiry)}
+                    >
+                      <Printer size={12} color={COLORS.primary} />
+                    </TouchableOpacity>
                   </View>
-
-                  <View style={styles.cargoInfo}>
-                    <Text style={styles.cargoDetail}>
-                      <Package size={12} color={COLORS.textLight} style={styles.icon} />
-                      {enquiry.commodity || 'N/A'}
-                    </Text>
-                    <Text style={styles.cargoDetail}>
-                      <Truck size={12} color={COLORS.textLight} style={styles.icon} />
-                      {enquiry.packages || '0'} {enquiry.packages_unit || 'packages'}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.cardFooter}>
-                  <TouchableOpacity
-                    style={styles.footerBtn}
-                    onPress={() => handleViewEnquiry(enquiry.id)}
-                  >
-                    <Eye size={14} color={COLORS.primary} />
-                    <Text style={styles.footerBtnText}>View</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.footerBtn}
-                    onPress={() => handleEditEnquiry(enquiry.id)}
-                  >
-                    <Edit size={14} color={COLORS.primary} />
-                    <Text style={styles.footerBtnText}>Edit</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.footerBtn}>
-                    <FileText size={14} color={COLORS.primary} />
-                    <Text style={styles.footerBtnText}>Job</Text>
-                  </TouchableOpacity>
                 </View>
               </View>
             ))}
@@ -423,6 +641,81 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  filterBtnActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+
+  // Filter section styles
+  filtersSection: {
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  filterRow: {
+    gap: 4,
+  },
+  filterField: {
+    gap: 4,
+  },
+  filterLabel: {
+    fontSize: 11,
+    color: COLORS.textLight,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    fontWeight: '700',
+  },
+  filterInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    height: 38,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: COLORS.text,
+    backgroundColor: COLORS.gray50,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: COLORS.gray50,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  chipActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  chipText: {
+    fontSize: 12,
+    color: COLORS.text,
+    fontWeight: '600',
+  },
+  chipTextActive: {
+    color: COLORS.white,
+  },
+  clearFilterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  clearFilterText: {
+    fontSize: 12,
+    color: COLORS.danger,
+    fontWeight: '600',
   },
 
   actionBar: {
@@ -511,6 +804,65 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 16,
   },
+
+  // Table styles
+  tableContainer: {
+    backgroundColor: COLORS.white,
+    marginHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.gray50,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  tableHeaderCell: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    alignItems: 'center',
+  },
+  tableCell: {
+    fontSize: 13,
+    color: COLORS.text,
+  },
+  colDate: { width: 70, flexShrink: 0 },
+  colEnqNo: { width: 90, flexShrink: 0 },
+  colCustomer: { flex: 1, minWidth: 100 },
+  colMode: { width: 80, flexShrink: 0 },
+  colStatus: { width: 80, flexShrink: 0 },
+  colJobId: { width: 70, flexShrink: 0 },
+  colActions: { width: 100, flexShrink: 0, justifyContent: 'flex-end' },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'flex-end',
+  },
+  actionBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: COLORS.gray50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Card styles (kept for fallback)
   enquiryCard: {
     backgroundColor: COLORS.white,
     borderRadius: 12,

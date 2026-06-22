@@ -1,7 +1,7 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, ClipboardPlus, Send, Loader } from 'lucide-react-native';
+import { ArrowLeft, ClipboardPlus, Send } from 'lucide-react-native';
 
 import { supabase } from '@/lib/supabase';
 import { COLORS } from '@/lib/types';
@@ -113,47 +113,6 @@ export default function EnquiryScreen() {
   const [form, setForm] = useState<FormState>(initialState);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>('');
-  const [loadingEnquiryNo, setLoadingEnquiryNo] = useState(true);
-
-  // Fetch the next enquiry number on component mount
-  useEffect(() => {
-    async function fetchNextEnquiryNo() {
-      try {
-        const { data: auth } = await supabase.auth.getUser();
-        const session = await resolveSalespersonSession(auth.user?.email ?? null);
-
-        if (!session.salesperson && session.appUser?.role !== 'admin') {
-          // Non-admin without salesperson - skip auto-generation
-          setLoadingEnquiryNo(false);
-          return;
-        }
-
-        const salespersonId = session.salesperson?.id;
-
-        if (!salespersonId) {
-          setLoadingEnquiryNo(false);
-          return;
-        }
-
-        // Fetch next enquiry number from backend
-        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
-        const response = await fetch(
-          `${apiUrl}/api/enquiries/next-enquiry-no?sales_person_id=${salespersonId}`
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          setForm(prev => ({ ...prev, enquiry_no: data.enquiry_no }));
-        }
-      } catch (e) {
-        console.log('[enquiry] Failed to fetch enquiry no:', e);
-      } finally {
-        setLoadingEnquiryNo(false);
-      }
-    }
-
-    fetchNextEnquiryNo();
-  }, []);
 
   async function handleSubmit() {
     console.log('[enquiry] Starting form submission');
@@ -299,19 +258,8 @@ export default function EnquiryScreen() {
 
           <View style={styles.grid2}>
             <View style={styles.field}>
-              <FieldLabel>Enquiry No {loadingEnquiryNo && '(Loading...)'}</FieldLabel>
-              {loadingEnquiryNo ? (
-                <View style={[styles.input, styles.inputDisabled, { justifyContent: 'center', alignItems: 'center' }]}>
-                  <ActivityIndicator size="small" color={COLORS.primary} />
-                </View>
-              ) : (
-                <Input
-                  value={form.enquiry_no}
-                  onChangeText={(t) => setForm((p) => ({ ...p, enquiry_no: t }))}
-                  placeholder="Auto-generated"
-                  editable={false}
-                />
-              )}
+              <FieldLabel>Enquiry No</FieldLabel>
+              <Input value={form.enquiry_no} onChangeText={(t) => setForm((p) => ({ ...p, enquiry_no: t }))} placeholder="Auto / manual" />
             </View>
             <View style={styles.field}>
               <FieldLabel>Enquiry Date</FieldLabel>

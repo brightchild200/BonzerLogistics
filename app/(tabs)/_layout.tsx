@@ -249,7 +249,7 @@ export default function TabsLayout() {
         />
         <Tabs.Screen
           name="visits"
-          options={{ title: 'Alerts', tabBarIcon: ({ size, color }) => <BellRing size={size} color={color} /> }}
+          options={{ title: 'Visit', tabBarIcon: ({ size, color }) => <BellRing size={size} color={color} /> }}
         />
         <Tabs.Screen
           name="enquiries"
