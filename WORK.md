@@ -63,7 +63,7 @@ admin
 sales_manager
 sales_person
 pricing
-cs
+customer_service
 operations
 accounts
 ```
@@ -102,7 +102,7 @@ Yogini
 Riya
     admin
     pricing
-    cs
+    customer_service
 ```
 
 ---
@@ -257,10 +257,10 @@ Example:
 
 ```text
 pricing
-cs
+customer_service
 ```
 
-shows both Pricing and CS functionality.
+shows both Pricing and Customer Service functionality.
 
 ---
 
@@ -327,7 +327,7 @@ Sales Person
       ↓
 Creates Enquiry
       ↓
-Assigns Pricing / CS User
+Assigns Pricing / Customer_Service User
       ↓
 Quotation Preparation
 ```
@@ -355,7 +355,7 @@ approved_by_user_id
 A quotation may be prepared by:
 
 * Pricing
-* CS
+* Customer_Service
 * Admin
 
 depending on assignment.

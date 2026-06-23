@@ -12,6 +12,15 @@ import Svg, { Rect, Text as SvgText, Ellipse, Circle, Line, G } from 'react-nati
 
 const { width } = Dimensions.get('window');
 
+type RegisterRole = 'admin' | 'sales_manager' | 'sales_person' | 'pricing' | 'customer_service' | 'operations' | 'accounts';
+
+const primaryRoles: RegisterRole[] = ['sales_manager', 'sales_person', 'customer_service'];
+const secondaryRoles: RegisterRole[] = ['admin', 'pricing', 'operations', 'accounts'];
+
+function formatRoleLabel(role: RegisterRole) {
+  return role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function AnimatedTruckBackground() {
   const truckPos = useRef(new Animated.Value(-300)).current;
 
@@ -88,7 +97,7 @@ export default function RegisterScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState<'admin' | 'sales_person'>('sales_person');
+  const [role, setRole] = useState<RegisterRole>('sales_person');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -127,20 +136,39 @@ export default function RegisterScreen() {
 
     // 2. Insert into public.users table to match schema
     if (data.user) {
-      const { error: insertError } = await supabase.from('users').insert({
-        username: username.trim(),
-        full_name: fullName.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phone.trim() || null,
-        role,
-        is_active: true,
-
-        auth_user_id: data.user.id, 
-      });
+      const { data: insertedUser, error: insertError } = await supabase
+        .from('users')
+        .insert({
+          username: username.trim(),
+          full_name: fullName.trim(),
+          email: email.trim().toLowerCase(),
+          phone: phone.trim() || null,
+          role,
+          is_active: true,
+          auth_user_id: data.user.id, 
+        })
+        .select()
+        .maybeSingle();
 
       if (insertError) {
         debugLog('register.tsx:insertUser:error', 'users table insert failed', { msg: insertError.message }, 'E');
-        // Non-fatal — auth user was created; log the error and continue
+      } else if (insertedUser) {
+        // Insert into user_roles mapping table as well
+        const { data: roleObj } = await supabase
+          .from('roles')
+          .select('id')
+          .eq('role_name', role)
+          .maybeSingle();
+
+        if (roleObj) {
+          const { error: roleLinkError } = await supabase.from('user_roles').insert({
+            user_id: insertedUser.id,
+            role_id: roleObj.id,
+          });
+          if (roleLinkError) {
+            debugLog('register.tsx:roleLink:error', 'user_roles table insert failed', { msg: roleLinkError.message }, 'E');
+          }
+        }
       }
     }
 
@@ -199,18 +227,38 @@ export default function RegisterScreen() {
 
             {/* Role Toggle */}
             <View style={styles.roleToggleContainer}>
-              <TouchableOpacity
-                style={[styles.roleBtn, role === 'admin' && styles.roleBtnActive]}
-                onPress={() => setRole('admin')}
-              >
-                <Text style={[styles.roleBtnText, role === 'admin' && styles.roleBtnTextActive]}>Admin</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.roleBtn, role === 'sales_person' && styles.roleBtnActive]}
-                onPress={() => setRole('sales_person')}
-              >
-                <Text style={[styles.roleBtnText, role === 'sales_person' && styles.roleBtnTextActive]}>Sales Person</Text>
-              </TouchableOpacity>
+              <View style={styles.roleToggleRow}>
+                {primaryRoles.map((item) => (
+                  <TouchableOpacity
+                    key={item}
+                    style={[styles.roleBtn, role === item && styles.roleBtnActive]}
+                    onPress={() => setRole(item)}
+                  >
+                    <Text
+                      numberOfLines={2}
+                      style={[styles.roleBtnText, role === item && styles.roleBtnTextActive]}
+                    >
+                      {formatRoleLabel(item)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={styles.roleToggleRow}>
+                {secondaryRoles.map((item) => (
+                  <TouchableOpacity
+                    key={item}
+                    style={[styles.roleBtn, role === item && styles.roleBtnActive]}
+                    onPress={() => setRole(item)}
+                  >
+                    <Text
+                      numberOfLines={2}
+                      style={[styles.roleBtnText, role === item && styles.roleBtnTextActive]}
+                    >
+                      {formatRoleLabel(item)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
             {/* Full Name */}
@@ -398,12 +446,16 @@ const styles = StyleSheet.create({
 
   // Role Toggle
   roleToggleContainer: {
-    flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12, padding: 4, marginBottom: 20,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12, padding: 4, marginBottom: 20, gap: 4,
   },
-  roleBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
+  roleToggleRow: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  roleBtn: { flex: 1, minHeight: 40, paddingVertical: 7, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
   roleBtnActive: { backgroundColor: 'rgba(249,115,22,0.15)' },
-  roleBtnText: { color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: '600' },
+  roleBtnText: { color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: '600', textAlign: 'center', lineHeight: 15 },
   roleBtnTextActive: { color: '#f97316' },
 
   // Fields

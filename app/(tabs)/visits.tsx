@@ -52,6 +52,7 @@ import { COLORS } from '@/lib/types';
 import { EmptyState } from '@/components/EmptyState';
 import { StatusBadge } from '@/components/Badge';
 import { resolveSalespersonSession } from '@/lib/salesperson-session';
+import { hasRole } from '@/lib/permissions';
 
 // ─── colour tokens (mirrored from the HTML design system) ────────────────────
 const C = {
@@ -114,6 +115,7 @@ interface VisitRow {
   contact_person_mobile?: string | null;
   contact_person_email?: string | null;
   contact_person_designation?: string | null;
+  salesperson_name?: string | null;
 }
 
 interface GPSState {
@@ -256,6 +258,7 @@ function VisitCard({ visit, onView }: { visit: VisitRow; onView: (v: VisitRow) =
   const name = visit.customer_name ?? 'Unknown Customer';
   const ss = statusStyle(visit.status);
   const { date, time } = formatDate(visit.visit_start);
+  const salespersonLabel = visit.salesperson_name ? `Salesperson: ${visit.salesperson_name}` : null;
 
   return (
     <View style={s.visitCard}>
@@ -271,6 +274,7 @@ function VisitCard({ visit, onView }: { visit: VisitRow; onView: (v: VisitRow) =
           {visit.contact_name ? (
             <Text style={s.vcContact}>{visit.contact_name}</Text>
           ) : null}
+          {salespersonLabel ? <Text style={s.vcContact}>{salespersonLabel}</Text> : null}
         </View>
         <View style={[s.statusBadge, { backgroundColor: ss.bg, borderColor: ss.border }]}>
           <Text style={[s.statusText, { color: ss.text }]}>{ss.label}</Text>
@@ -1008,6 +1012,7 @@ export default function CustomerVisitsScreen() {
     const session = await resolveSalespersonSession(auth.user?.email ?? null);
     const spId = session.salesperson?.id ?? null;
     setSalespersonId(spId);
+    const canSeeTeamData = hasRole(session.roles, 'admin') || hasRole(session.roles, 'sales_manager');
 
     const from = (pageNum - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
@@ -1024,15 +1029,22 @@ export default function CustomerVisitsScreen() {
       .range(from, to);
 
 
-    if (spId) query = query.eq('sales_person_id', spId);
+    if (!canSeeTeamData && spId) query = query.eq('sales_person_id', spId);
 
     const { data, count } = await query;
+    const salespersonIds = Array.from(new Set((data ?? []).map((v: any) => v.sales_person_id).filter((id): id is number => typeof id === 'number')));
+    let salespersonMap: Record<number, string> = {};
+    if (salespersonIds.length > 0) {
+      const { data: salespersonRows } = await supabase.from('sales_persons').select('id, name').in('id', salespersonIds);
+      salespersonMap = Object.fromEntries((salespersonRows ?? []).map((row) => [row.id, row.name]));
+    }
     const mapped: VisitRow[] = (data ?? []).map((v: Record<string, unknown>) => {
       const cm = v.customer_master as { name?: string; contact_person?: string } | null;
       return {
         ...(v as unknown as VisitRow),
         customer_name: cm?.name,
         contact_name: cm?.contact_person,
+        salesperson_name: v.sales_person_id ? (salespersonMap[Number(v.sales_person_id)] || null) : null,
       };
     });
     setVisits(mapped);
@@ -1045,7 +1057,7 @@ export default function CustomerVisitsScreen() {
         .select('status, visit_start, visit_end')
         .order('visit_start', { ascending: false })
         .limit(200);
-      if (spId) allQ = allQ.eq('sales_person_id', spId);
+      if (!canSeeTeamData && spId) allQ = allQ.eq('sales_person_id', spId);
       const { data: allD } = await allQ;
       setAllVisits(allD ?? []);
     }

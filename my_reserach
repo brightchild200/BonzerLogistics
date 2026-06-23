@@ -1,5 +1,174 @@
 minimax-m2.1:cloud
 
+#######################################
+Role management & access control — current implementation (based on inspected files)
+1) Database schema (role-related tables/columns found)
+Source: lib/schema.ts (generated Supabase types)
+
+Legacy single-role column
+
+public.users.role: string
+Role tables (multi-role/RBAC-ish)
+
+public.roles
+id: number
+role_name: string
+public.user_roles
+id: number (present in type)
+user_id: number → users.id
+role_id: number → roles.id
+Other auth-ish link table
+
+public.sales_persons.user_id: number | null (relationship exists)
+Role resolution approach in app
+Source: lib/salesperson-session.ts
+
+Fetch app user: supabase.from('users').ilike('email', email).maybeSingle()
+Fetch roles: supabase.from('user_roles').select('roles(role_name)').eq('user_id', appUser.id)
+Fallback: if no roles found, use appUser.role (legacy)
+So roles are stored as:
+
+Primary: user_roles + roles
+Secondary: users.role
+2) Frontend code (where UI is conditionally rendered)
+Source files inspected:
+
+app/(tabs)/_layout.tsx
+app/(tabs)/attendance.tsx
+lib/permissions.ts
+a) Role helper
+lib/permissions.ts
+
+
+export const hasRole = (roles: string[] | null | undefined, role: string): boolean => {
+  if (!roles || !Array.isArray(roles)) return false;
+  return roles.includes(role);
+};
+b) Dashboard / menu / tab visibility gating
+app/(tabs)/_layout.tsx
+
+Roles loaded via:
+
+
+const session = await resolveSalespersonSession(data.user?.email ?? null);
+setViewer({ fullName: ..., roles: session.roles });
+Leads tab visibility:
+
+
+const visibleRoutes = state.routes.filter((route: any) => {
+  if (route.name === 'leads') {
+    return hasRole(viewerRoles, 'admin') || hasRole(viewerRoles, 'sales_manager');
+  }
+  return true;
+});
+Also sets showLeads similarly:
+
+
+const showLeads = hasRole(viewer.roles, 'admin') || hasRole(viewer.roles, 'sales_manager');
+So at least one navigation element is restricted by hardcoded role names.
+
+c) Screen-level conditional data access (UI gating)
+app/(tabs)/attendance.tsx
+
+Resolves role list via resolveSalespersonSession()
+Then controls whether the screen queries team-wide vs self-only data:
+
+const canSeeTeamData = hasRole(session.roles, 'admin') || hasRole(session.roles, 'sales_manager');
+
+if (!canSeeTeamData) {
+  todayQuery = todayQuery.eq('sales_person_id', session.salesperson.id);
+  historyQuery = historyQuery.eq('sales_person_id', session.sales_person_id);
+}
+So authorization is enforced in the client by changing the query filters.
+
+3) Backend / Supabase enforcement & RLS review
+What I confirmed from backend code
+backend/db/supabase.js uses service-role key:
+
+
+process.env.SUPABASE_SERVICE_KEY
+Backend route files enforce row-level access by filtering on req.user.id in code, not (so far) by RLS policies:
+
+backend/routes/leads.js
+
+
+.eq('assigned_to', req.user.id)
+backend/routes/enquiries.js
+
+
+.eq('salesperson_id', req.user.id)
+// and insert sets salesperson_id: req.user.id
+backend/routes/followups.js
+
+
+.eq('assigned_to', req.user.id)
+backend/routes/attendance.js
+
+Check-in inserts sales_person_id from req.user?.id
+Check-out updates rows using .eq('sales_person_id', sales_person_id) and .eq('attendance_date', date)
+“me” endpoint returns only sales_attendance for the caller.
+RLS / policy review status
+I could not reliably search existing_schema for RLS policy SQL because the repo-search tool fails (ripgrep missing).
+I also could not open backend/middleware/auth because it was not present in backend/middleware (only errorHandler.js is listed by the tool).
+Therefore: I cannot conclusively state whether Supabase RLS is enabled and properly configured.
+
+Bypass risk (based on confirmed facts)
+Because backend uses a service key, if RLS is missing/weak and backend endpoints are callable without strict authorization, a bypass could happen.
+However, code currently attempts to restrict rows via eq(..., req.user.id) filters.
+4) Current architecture flow (implemented)
+End-to-end (confirmed parts):
+
+User login / auth session exists
+app/_layout.tsx checks supabase.auth.getUser() and redirects to login if absent.
+User record lookup
+resolveSalespersonSession(email) fetches public.users by email.
+Role resolution
+Primary: public.user_roles join public.roles → role_name[]
+Fallback: public.users.role
+Permission resolution (UI level)
+UI computes booleans like:
+hasRole(roles, 'admin') || hasRole(roles, 'sales_manager')
+Dashboard/menu rendering
+In app/(tabs)/_layout.tsx, leads tab appears only for those roles.
+Data access
+In app/(tabs)/attendance.tsx, the client conditionally adds query filters based on role.
+Backend endpoints filter rows by req.user.id (code-level enforcement).
+5) Evaluation (classification)
+Classification: Hybrid
+
+Database-driven role resolution: roles + user_roles (plus fallback users.role)
+Hardcoded authorization rules in UI: admin and sales_manager checks in app/(tabs)/_layout.tsx and app/(tabs)/attendance.tsx
+6) Scalability (future roles)
+Current pattern does not scale cleanly:
+
+Every new role requires code changes at each place where checks are hardcoded.
+Roles are resolved as names (role_name), but permission logic is still hardcoded.
+It will work for a small number of roles, but becomes fragile as you add:
+
+Admin, Sales Person, Branch Manager, Operations, Dispatch, Accounts, HR...
+7) Recommendations (keep vs migrate)
+Recommendation: migrate toward a proper RBAC/permission system (hybrid → permission-based + consistent enforcement)
+
+Minimum target model:
+
+Keep roles and user_roles (good start)
+Add/introduce permissions and role_permissions
+Replace hardcoded admin/sales_manager UI checks with permission checks (e.g., can('leads.read'))
+Enforce permissions consistently:
+UI: for visibility/UX
+DB (RLS) or backend: for real security
+Critical risk to address: confirm and implement Supabase RLS policies for all sensitive tables. If you continue using a service key in backend, RLS must be correct or backend must be strictly authorized (and never expose service-key usage to untrusted clients).
+
+Final verdict
+Roles storage/resolution: multi-role DB-driven (roles + user_roles) with legacy fallback (users.role) ✅
+Authorization enforcement: at least partially hardcoded in UI ✅ (confirmed)
+Database-level enforcement (RLS policies): not confirmed yet (blocked by search-tool failure + missing auth middleware inspection) ⚠️
+Overall: Hybrid RBAC, but security scalability depends heavily on completing RLS/policy enforcement.
+
+####################################################
+
+
+
 I’m checking the legacy schema for the full sales/activity surface now, then I’ll summarize the concrete gaps relative to your current shared schema and UI without hand-waving.
 
 Searched for regex `activity|tracking|followup|attendance|sales_person|notification_logs|reminder` (`**/existing_schema`), 90 results
@@ -508,3 +677,7 @@ Payment
 ```
 
 This would be my recommended "Phase 1 stable architecture" before you continue building the rest of the ERP. It gives you multi-role users, sales hierarchy, quotation ownership, visit tracking, and a clean workflow without needing another major redesign later.
+
+
+
+For your current ERP stage, RPC functions will give you 80% of the backend benefits with 20% of the complexity. That's why I wouldn't build a full backend yet.

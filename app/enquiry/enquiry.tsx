@@ -6,6 +6,7 @@ import { ArrowLeft, ClipboardPlus, Send, Loader } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { COLORS } from '@/lib/types';
 import { resolveSalespersonSession } from '@/lib/salesperson-session';
+import { hasRole } from '@/lib/permissions';
 
 
 type FormState = {
@@ -122,7 +123,7 @@ export default function EnquiryScreen() {
         const { data: auth } = await supabase.auth.getUser();
         const session = await resolveSalespersonSession(auth.user?.email ?? null);
 
-        if (!session.salesperson && session.appUser?.role !== 'admin') {
+        if (!session.salesperson && !hasRole(session.roles, 'admin')) {
           // Non-admin without salesperson - skip auto-generation
           setLoadingEnquiryNo(false);
           return;
@@ -181,7 +182,7 @@ export default function EnquiryScreen() {
 
       const session = await resolveSalespersonSession(auth.user?.email ?? null);
       console.log('[enquiry] Session resolved:', {
-        role: session.appUser?.role ?? null,
+        roles: session.roles,
         hasSalesperson: !!session.salesperson,
         salespersonId: session.salesperson?.id ?? null,
       });
@@ -194,7 +195,7 @@ export default function EnquiryScreen() {
         return;
       }
 
-      const isAdmin = session.appUser.role === 'admin';
+      const isAdmin = hasRole(session.roles, 'admin');
       if (!isAdmin && !session.salesperson) {
         const errorMsg = 'No salesperson profile is linked to this account yet.';
         console.error('[enquiry] Error:', errorMsg);
@@ -239,7 +240,7 @@ export default function EnquiryScreen() {
       };
 
       console.log('[enquiry] session used for insert', {
-        role: session.appUser?.role ?? null,
+        roles: session.roles,
         hasSalesperson: !!session.salesperson,
         salespersonId: session.salesperson?.id ?? null,
       });

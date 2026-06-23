@@ -2,6 +2,10 @@ import { supabase } from '@/lib/supabase';
 import type { SalesPersonRow, UserRow } from '@/lib/schema';
 
 export type SalespersonSession = {
+  userId: number | null;
+  authUserId: string | null;
+  roles: string[];
+  salespersonId: number | null;
   authEmail: string | null;
   appUser: UserRow | null;
   salesperson: SalesPersonRow | null;
@@ -11,19 +15,41 @@ export async function resolveSalespersonSession(authEmail: string | null | undef
   const email = authEmail?.trim().toLowerCase() || null;
 
   if (!email) {
-    return { authEmail: null, appUser: null, salesperson: null };
+    return {
+      userId: null,
+      authUserId: null,
+      roles: [],
+      salespersonId: null,
+      authEmail: null,
+      appUser: null,
+      salesperson: null,
+    };
   }
 
-  // Resolve the app user first so we can read `users.role` (admin vs sales_person)
+  // Resolve the app user first
   const appUserRes = await supabase.from('users').select('*').ilike('email', email).maybeSingle();
   const appUser = appUserRes.data ?? null;
 
-  // If admin, we don't require a sales_persons mapping
-  if (appUser?.role === 'admin') {
-    return { authEmail: email, appUser, salesperson: null };
+  let roles: string[] = [];
+  if (appUser) {
+    const { data: userRolesData } = await supabase
+      .from('user_roles')
+      .select('roles(role_name)')
+      .eq('user_id', appUser.id);
+
+    if (userRolesData) {
+      roles = userRolesData
+        .map((ur: any) => ur.roles?.role_name)
+        .filter((r): r is string => typeof r === 'string');
+    }
+
+    // Fallback: if no roles are assigned in user_roles yet, use the legacy users.role column
+    if (roles.length === 0 && appUser.role) {
+      roles = [appUser.role];
+    }
   }
 
-  // For non-admin users, resolve salesperson mapping.
+  // For admin or pricing/CS/ops/accounts etc., resolving salesperson mapping
   // Primary strategy: sales_persons.email -> auth user email.
   const salesPersonByEmail = await supabase
     .from('sales_persons')
@@ -31,20 +57,26 @@ export async function resolveSalespersonSession(authEmail: string | null | undef
     .ilike('email', email)
     .maybeSingle();
 
-  if (salesPersonByEmail.data) {
-    return { authEmail: email, appUser, salesperson: salesPersonByEmail.data };
+  let salesperson = salesPersonByEmail.data ?? null;
+
+  if (!salesperson && appUser) {
+    // Fallback: match through user_id
+    const salesPersonByUser = await supabase
+      .from('sales_persons')
+      .select('*')
+      .eq('user_id', appUser.id)
+      .maybeSingle();
+    salesperson = salesPersonByUser.data ?? null;
   }
 
-  // Fallback: match through user_id.
-  // If users.email lookup failed (appUser null), we cannot use this fallback.
-  const salesPersonByUser = appUser
-    ? await supabase.from('sales_persons').select('*').eq('user_id', appUser.id).maybeSingle()
-    : { data: null };
-
   return {
+    userId: appUser?.id ?? null,
+    authUserId: appUser?.auth_user_id ?? null,
+    roles,
+    salespersonId: salesperson?.id ?? null,
     authEmail: email,
     appUser,
-    salesperson: salesPersonByUser.data ?? null,
+    salesperson,
   };
 }
 

@@ -259,6 +259,7 @@ export type Database = {
           bank_name: string | null;
           bank_account_no: string | null;
           ifsc_code: string | null;
+          manager_id: number | null;
         };
         Insert: {
           id?: number;
@@ -277,6 +278,7 @@ export type Database = {
           bank_name?: string | null;
           bank_account_no?: string | null;
           ifsc_code?: string | null;
+          manager_id?: number | null;
         };
         Update: {
           id?: number;
@@ -295,6 +297,7 @@ export type Database = {
           bank_name?: string | null;
           bank_account_no?: string | null;
           ifsc_code?: string | null;
+          manager_id?: number | null;
         };
         Relationships: [
           {
@@ -302,6 +305,13 @@ export type Database = {
             columns: ['user_id'];
             isOneToOne: false;
             referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'sales_persons_manager_id_fkey';
+            columns: ['manager_id'];
+            isOneToOne: false;
+            referencedRelation: 'sales_persons';
             referencedColumns: ['id'];
           },
         ];
@@ -632,6 +642,235 @@ export type Database = {
           },
         ];
       };
+      roles: {
+        Row: {
+          id: number;
+          role_name: string;
+        };
+        Insert: {
+          id?: number;
+          role_name: string;
+        };
+        Update: {
+          id?: number;
+          role_name?: string;
+        };
+        Relationships: [];
+      };
+      user_roles: {
+        Row: {
+          id: number;
+          user_id: number;
+          role_id: number;
+        };
+        Insert: {
+          id?: number;
+          user_id: number;
+          role_id: number;
+        };
+        Update: {
+          id?: number;
+          user_id?: number;
+          role_id?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'user_roles_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'user_roles_role_id_fkey';
+            columns: ['role_id'];
+            isOneToOne: false;
+            referencedRelation: 'roles';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      quotations: {
+        Row: {
+          id: number;
+          quotation_no: string;
+          enquiry_id: number;
+          company_id: number | null;
+          customer_id: number | null;
+          sales_person_id: number | null;
+          assigned_to_user_id: number | null;
+          prepared_by_user_id: number | null;
+          quotation_date: string;
+          validity_date: string | null;
+          currency: string | null;
+          subtotal: number | null;
+          tax_amount: number | null;
+          discount_amount: number | null;
+          total_amount: number | null;
+          status: string | null;
+          customer_remark: string | null;
+          internal_remark: string | null;
+          approved_at: string | null;
+          converted_to_job_id: number | null;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          id?: number;
+          quotation_no: string;
+          enquiry_id: number;
+          company_id?: number | null;
+          customer_id?: number | null;
+          sales_person_id?: number | null;
+          assigned_to_user_id?: number | null;
+          prepared_by_user_id?: number | null;
+          quotation_date?: string;
+          validity_date?: string | null;
+          currency?: string | null;
+          subtotal?: number | null;
+          tax_amount?: number | null;
+          discount_amount?: number | null;
+          total_amount?: number | null;
+          status?: string | null;
+          customer_remark?: string | null;
+          internal_remark?: string | null;
+          approved_at?: string | null;
+          converted_to_job_id?: number | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          id?: number;
+          quotation_no?: string;
+          enquiry_id?: number;
+          company_id?: number | null;
+          customer_id?: number | null;
+          sales_person_id?: number | null;
+          assigned_to_user_id?: number | null;
+          prepared_by_user_id?: number | null;
+          quotation_date?: string;
+          validity_date?: string | null;
+          currency?: string | null;
+          subtotal?: number | null;
+          tax_amount?: number | null;
+          discount_amount?: number | null;
+          total_amount?: number | null;
+          status?: string | null;
+          customer_remark?: string | null;
+          internal_remark?: string | null;
+          approved_at?: string | null;
+          converted_to_job_id?: number | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'quotations_enquiry_id_fkey';
+            columns: ['enquiry_id'];
+            isOneToOne: false;
+            referencedRelation: 'enquiries';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'quotations_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'quotations_customer_id_fkey';
+            columns: ['customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'customer_master';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'quotations_sales_person_id_fkey';
+            columns: ['sales_person_id'];
+            isOneToOne: false;
+            referencedRelation: 'sales_persons';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'quotations_assigned_to_user_id_fkey';
+            columns: ['assigned_to_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'quotations_prepared_by_user_id_fkey';
+            columns: ['prepared_by_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'quotations_converted_to_job_id_fkey';
+            columns: ['converted_to_job_id'];
+            isOneToOne: false;
+            referencedRelation: 'jobs';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      quotation_items: {
+        Row: {
+          id: number;
+          quotation_id: number;
+          description: string;
+          sac_code: string | null;
+          quantity: number | null;
+          rate: number | null;
+          currency: string | null;
+          exchange_rate: number | null;
+          amount: number | null;
+          gst_percent: number | null;
+          gst_amount: number | null;
+          total_amount: number | null;
+          sort_order: number | null;
+        };
+        Insert: {
+          id?: number;
+          quotation_id: number;
+          description: string;
+          sac_code?: string | null;
+          quantity?: number | null;
+          rate?: number | null;
+          currency?: string | null;
+          exchange_rate?: number | null;
+          amount?: number | null;
+          gst_percent?: number | null;
+          gst_amount?: number | null;
+          total_amount?: number | null;
+          sort_order?: number | null;
+        };
+        Update: {
+          id?: number;
+          quotation_id?: number;
+          description?: string;
+          sac_code?: string | null;
+          quantity?: number | null;
+          rate?: number | null;
+          currency?: string | null;
+          exchange_rate?: number | null;
+          amount?: number | null;
+          gst_percent?: number | null;
+          gst_amount?: number | null;
+          total_amount?: number | null;
+          sort_order?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'quotation_items_quotation_id_fkey';
+            columns: ['quotation_id'];
+            isOneToOne: false;
+            referencedRelation: 'quotations';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
     };
     Views: {};
     Functions: {};
@@ -697,3 +936,19 @@ export type SalesFollowupReminderUpdate = Update<'sales_followup_reminders'>;
 export type NotificationLogRow = Row<'notification_logs'>;
 export type NotificationLogInsert = Insert<'notification_logs'>;
 export type NotificationLogUpdate = Update<'notification_logs'>;
+
+export type RoleRow = Row<'roles'>;
+export type RoleInsert = Insert<'roles'>;
+export type RoleUpdate = Update<'roles'>;
+
+export type UserRoleRow = Row<'user_roles'>;
+export type UserRoleInsert = Insert<'user_roles'>;
+export type UserRoleUpdate = Update<'user_roles'>;
+
+export type QuotationRow = Row<'quotations'>;
+export type QuotationInsert = Insert<'quotations'>;
+export type QuotationUpdate = Update<'quotations'>;
+
+export type QuotationItemRow = Row<'quotation_items'>;
+export type QuotationItemInsert = Insert<'quotation_items'>;
+export type QuotationItemUpdate = Update<'quotation_items'>;

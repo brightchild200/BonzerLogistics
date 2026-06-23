@@ -10,3 +10,13 @@ Plans:
 - [ ] 01-01-PLAN.md — Align the shared schema contracts and tab shell to the salesperson module
 - [ ] 01-02-PLAN.md — Rework the dashboard, attendance, and profile screens around `sales_persons` and `sales_attendance`
 - [ ] 01-03-PLAN.md — Rework follow-ups, reminders, and notification audit views around the relational sales flow
+
+### Phase 2: ERP Authorization and Sales Hierarchy Refactor
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 1
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 2 to break down)

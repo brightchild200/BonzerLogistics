@@ -1,88 +1,97 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
-  AlertCircle,
+  ArrowRight,
   Bell,
   CalendarClock,
   CheckCircle2,
-  Clock3,
-  LayoutDashboard,
+  Download,
+  FileText,
   MapPinned,
-  RefreshCw,
-  Search,
+  Megaphone,
   ShieldCheck,
-  TrendingUp,
   Users,
+  X,
 } from 'lucide-react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { COLORS, type NotificationLogCard, type SalesAttendanceCard, type SalesFollowupCard, type SalesPersonCard } from '@/lib/types';
+import {
+  COLORS,
+  type NotificationLogRow,
+  type SalesAttendanceCard,
+  type SalesAttendanceRow,
+  type SalesFollowupRow,
+  type SalesPersonCard,
+} from '@/lib/types';
 import { EmptyState } from '@/components/EmptyState';
-import { MetricCard } from '@/components/MetricCard';
 import { StatusBadge } from '@/components/Badge';
-import { mapNotificationLog, mapSalesAttendance, mapSalesFollowup, mapSalesPerson, mapUserDisplayName } from '@/lib/salesperson-mappers';
+import {
+  getStatusPresentation,
+  mapNotificationLog,
+  mapSalesAttendance,
+  mapSalesFollowup,
+  mapSalesPerson,
+  mapUserDisplayName,
+} from '@/lib/salesperson-mappers';
 import { resolveSalespersonSession } from '@/lib/salesperson-session';
 
 type DashboardMetrics = {
   totalFollowups: number;
   pendingFollowups: number;
   attendanceThisWeek: number;
-  notifications: number;
+  enquiriesThisMonth: number;
   checkedInToday: boolean;
+  visitsThisMonth: number;
 };
 
-const initialMetrics: DashboardMetrics = {
-  totalFollowups: 0,
-  pendingFollowups: 0,
-  attendanceThisWeek: 0,
-  notifications: 0,
-  checkedInToday: false,
+const COMPLETED_STATUSES = ['completed', 'complete', 'done', 'closed'];
+
+type EnquiryRow = {
+  id: number;
+  enq_date: string | null;
+  sales_person_id: number | null;
 };
 
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <View>
-          <Text style={styles.sectionTitle}>{title}</Text>
-          {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
-        </View>
-      </View>
-      <View style={styles.panel}>{children}</View>
-    </View>
-  );
+type JobRow = {
+  id: number;
+  enq_date: string | null;
+  sales_person_id: number | null;
+};
+
+function isClosedFollowup(status: string | null | undefined) {
+  return COMPLETED_STATUSES.includes((status || '').trim().toLowerCase());
 }
 
-function ListRow({
-  icon,
-  title,
-  subtitle,
-  detail,
-  status,
-  accent,
-  bordered,
-  trailing,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-  detail: string;
-  status: string;
-  accent: string;
-  bordered?: boolean;
-  trailing?: React.ReactNode;
-}) {
-  return (
-    <View style={[styles.row, bordered && styles.rowBorder]}>
-      <View style={[styles.rowIcon, { backgroundColor: accent }]}>{icon}</View>
-      <View style={styles.rowBody}>
-        <Text style={styles.rowTitle}>{title}</Text>
-        <Text style={styles.rowSub}>{subtitle}</Text>
-        <Text style={styles.rowMeta}>{detail}</Text>
-      </View>
-      <View style={styles.rowTrail}>{trailing ?? <StatusBadge status={status} />}</View>
-    </View>
-  );
+function dateKey(value: string | null | undefined) {
+  return value ? value.slice(0, 10) : '';
+}
+
+function formatClock(value: string | null | undefined) {
+  if (!value) return 'Not set';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(parsed);
+}
+
+function formatLocation(row: SalesAttendanceRow | null) {
+  if (!row) return 'Location not captured';
+  return row.site_name || row.site_address || 'Location not captured';
+}
+
+function formatWeekday(value: Date) {
+  return new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(value);
+}
+
+function getMonthBounds(date = new Date()) {
+  const start = new Date(date.getFullYear(), date.getMonth(), 1);
+  const next = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+  return {
+    start: start.toISOString().slice(0, 10),
+    next: next.toISOString().slice(0, 10),
+  };
 }
 
 function toneColor(tone: string) {
@@ -100,41 +109,317 @@ function toneColor(tone: string) {
   }
 }
 
-export default function DashboardScreen() {
-  const [salesperson, setSalesperson] = useState<SalesPersonCard | null>(null);
-  const [metrics, setMetrics] = useState<DashboardMetrics>(initialMetrics);
-  const [todayAttendance, setTodayAttendance] = useState<SalesAttendanceCard | null>(null);
-  const [followups, setFollowups] = useState<SalesFollowupCard[]>([]);
-  const [notifications, setNotifications] = useState<NotificationLogCard[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
+function DashboardSection({
+  title,
+  subtitle,
+  actionLabel,
+  onAction,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <View>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
+        </View>
+        {actionLabel ? (
+          <Pressable
+            onPress={onAction}
+            style={({ pressed }) => [styles.sectionAction, pressed && styles.sectionActionPressed]}
+          >
+            <Text style={styles.sectionActionText}>{actionLabel}</Text>
+            <ArrowRight size={14} color={COLORS.primary} />
+          </Pressable>
+        ) : null}
+      </View>
+      <View style={styles.sectionCard}>{children}</View>
+    </View>
+  );
+}
 
-  async function loadData() {
+function MetricTile({
+  title,
+  value,
+  subtitle,
+  accent,
+  icon,
+}: {
+  title: string;
+  value: React.ReactNode;
+  subtitle?: string;
+  accent: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <View style={styles.metricCard}>
+      <View style={[styles.metricIconWrap, { backgroundColor: `${accent}18` }]}>{icon}</View>
+      <View style={styles.metricCopy}>
+        <Text style={styles.metricLabel}>{title}</Text>
+        <Text style={[styles.metricValue, { color: accent }]}>{value}</Text>
+        {subtitle ? <Text style={styles.metricSubtitle}>{subtitle}</Text> : null}
+      </View>
+    </View>
+  );
+}
+
+function MonthTargetCard({
+  visits,
+  enquiries,
+  jobs,
+}: {
+  visits: number;
+  enquiries: number;
+  jobs: number;
+}) {
+  const rows = [
+    { label: 'Visits', value: visits, color: COLORS.primary },
+    { label: 'Enquiries', value: enquiries, color: COLORS.warning },
+    { label: 'Jobs', value: jobs, color: COLORS.success },
+  ];
+  const maxValue = Math.max(1, ...rows.map((row) => row.value));
+
+  return (
+    <View style={styles.monthCard}>
+      <View style={styles.monthCardHeader}>
+        <View>
+          <Text style={styles.monthCardTitle}>Month Target</Text>
+          <Text style={styles.monthCardSubtitle}>Visits, enquiries, and jobs this month</Text>
+        </View>
+        <View style={styles.monthCardChip}>
+          <CalendarClock size={14} color={COLORS.primary} />
+          <Text style={styles.monthCardChipText}>This month</Text>
+        </View>
+      </View>
+
+      <View style={styles.monthCardRows}>
+        {rows.map((row) => (
+          <View key={row.label} style={styles.monthCardRow}>
+            <View style={styles.monthCardRowHead}>
+              <Text style={styles.monthCardRowLabel}>{row.label}</Text>
+              <Text style={styles.monthCardRowValue}>{row.value}</Text>
+            </View>
+            <View style={styles.monthCardTrack}>
+              <View
+                style={[
+                  styles.monthCardFill,
+                  { width: `${Math.max(10, Math.round((row.value / maxValue) * 100))}%`, backgroundColor: row.color },
+                ]}
+              />
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function CheckInTile({
+  attendance,
+  attendanceRow,
+  checkedInToday,
+}: {
+  attendance: SalesAttendanceCard | null;
+  attendanceRow: SalesAttendanceRow | null;
+  checkedInToday: boolean;
+}) {
+  const statusTone = attendance?.statusTone ?? 'warning';
+  const statusColor = toneColor(statusTone);
+  const checkInTime = formatClock(attendanceRow?.check_in_at);
+  const location = formatLocation(attendanceRow);
+
+  return (
+    <View style={styles.checkInCard}>
+      <View style={styles.checkInHeader}>
+        <Text style={styles.metricLabel}>Checked In</Text>
+        <View style={styles.checkInBadge}>
+          <View style={[styles.checkInDot, { backgroundColor: checkedInToday ? COLORS.success : COLORS.warning }]} />
+          <Text style={[styles.checkInBadgeText, { color: checkedInToday ? COLORS.success : COLORS.warning }]}>
+            {checkedInToday ? 'Today' : 'Awaiting'}
+          </Text>
+        </View>
+      </View>
+
+      {attendance ? (
+        <View style={styles.checkInBody}>
+          <View style={styles.checkInStatusRow}>
+            <Text style={styles.checkInTime}>{checkInTime}</Text>
+            <StatusBadge status={attendance.statusLabel} />
+          </View>
+          <View style={styles.checkInLocationRow}>
+            <MapPinned size={16} color={statusColor} />
+            <Text style={styles.checkInLocationText} numberOfLines={1}>
+              {location}
+            </Text>
+          </View>
+          <Text style={styles.checkInSubtitle} numberOfLines={2}>
+            {attendanceRow?.site_address || attendance.subtitle}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.checkInEmpty}>
+          <ShieldCheck size={22} color={COLORS.textLight} />
+          <Text style={styles.checkInEmptyText}>No attendance record today</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function ChartSection({
+  series,
+}: {
+  series: Array<{
+    key: string;
+    label: string;
+    visits: number;
+    jobs: number;
+    enquiries: number;
+  }>;
+}) {
+  const maxValue = Math.max(1, ...series.map((entry) => Math.max(entry.visits, entry.jobs, entry.enquiries)));
+
+  return (
+    <View style={styles.chartCard}>
+      <View style={styles.chartHeader}>
+        <View>
+          <Text style={styles.sectionTitle}>Performance Overview</Text>
+          <Text style={styles.sectionSubtitle}>Total visits, jobs, and enquiries over the last 7 days.</Text>
+        </View>
+        <View style={styles.legendRow}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: COLORS.primary }]} />
+            <Text style={styles.legendText}>Visits</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: COLORS.success }]} />
+            <Text style={styles.legendText}>Jobs</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: COLORS.warning }]} />
+            <Text style={styles.legendText}>Enquiries</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.chartArea}>
+        {series.map((entry) => (
+          <View key={entry.key} style={styles.chartColumn}>
+            <View style={styles.chartBars}>
+              <View
+                style={[
+                  styles.chartBar,
+                  styles.chartBarPrimary,
+                  { height: `${Math.max(8, Math.round((entry.visits / maxValue) * 100))}%` },
+                ]}
+              />
+              <View
+                style={[
+                  styles.chartBar,
+                  styles.chartBarSuccess,
+                  { height: `${Math.max(8, Math.round((entry.jobs / maxValue) * 100))}%` },
+                ]}
+              />
+              <View
+                style={[
+                  styles.chartBar,
+                  styles.chartBarWarning,
+                  { height: `${Math.max(8, Math.round((entry.enquiries / maxValue) * 100))}%` },
+                ]}
+              />
+            </View>
+            <Text style={styles.chartLabel}>{entry.label}</Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.chartFooter}>
+        <Pressable
+          onPress={() => {
+            console.log('[dashboard] detailed analytics tapped');
+          }}
+          style={({ pressed }) => [styles.linkButton, pressed && styles.linkButtonPressed]}
+        >
+          <Text style={styles.linkButtonText}>View Detailed Analytics</Text>
+          <ArrowRight size={16} color={COLORS.primary} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function ActivityItem({
+  icon,
+  title,
+  subtitle,
+  detail,
+  accent,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  detail: string;
+  accent: string;
+}) {
+  return (
+    <View style={styles.timelineItem}>
+      <View style={[styles.timelineDot, { backgroundColor: accent }]}>{icon}</View>
+      <View style={styles.timelineBody}>
+        <Text style={styles.timelineTitle}>
+          <Text style={styles.timelineTitleStrong}>{title}</Text>
+          {subtitle ? ` - ${subtitle}` : ''}
+        </Text>
+        <Text style={styles.timelineDetail}>{detail}</Text>
+      </View>
+    </View>
+  );
+}
+
+export default function DashboardScreen() {
+  const router = useRouter();
+  const [salesperson, setSalesperson] = useState<SalesPersonCard | null>(null);
+  const [followups, setFollowups] = useState<SalesFollowupRow[]>([]);
+  const [attendanceRows, setAttendanceRows] = useState<SalesAttendanceRow[]>([]);
+  const [enquiryRows, setEnquiryRows] = useState<EnquiryRow[]>([]);
+  const [jobRows, setJobRows] = useState<JobRow[]>([]);
+  const [notificationRows, setNotificationRows] = useState<NotificationLogRow[]>([]);
+  const [todayAttendance, setTodayAttendance] = useState<SalesAttendanceCard | null>(null);
+  const [todayAttendanceRow, setTodayAttendanceRow] = useState<SalesAttendanceRow | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [showAnnouncement, setShowAnnouncement] = useState(true);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
     try {
-      console.log('[dashboard] load start');
       const { data: auth, error: authErr } = await supabase.auth.getUser();
-      console.log('[dashboard] auth ok:', !authErr, authErr ?? null);
+      if (authErr) {
+        console.warn('[dashboard] auth lookup failed:', authErr);
+      }
 
       const session = await resolveSalespersonSession(auth.user?.email ?? null);
-      console.log('[dashboard] session resolved:', {
-        hasAuthEmail: !!session.authEmail,
-        hasAppUser: !!session.appUser,
-        hasSalesperson: !!session.salesperson,
-      });
-
       const salespersonRow = session.salesperson;
       setSalesperson(salespersonRow ? mapSalesPerson(salespersonRow) : null);
 
       if (!salespersonRow) {
-        console.warn('[dashboard] no salesperson mapping found for the current auth user');
-        setMetrics(initialMetrics);
-        setTodayAttendance(null);
         setFollowups([]);
-        setNotifications([]);
+        setAttendanceRows([]);
+        setEnquiryRows([]);
+        setJobRows([]);
+        setNotificationRows([]);
+        setTodayAttendance(null);
+        setTodayAttendanceRow(null);
+        setLastSyncedAt(null);
         return;
       }
 
-      const today = new Date().toISOString().split('T')[0];
-      const weekStart = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+      const today = new Date().toISOString().slice(0, 10);
+      const monthBounds = getMonthBounds();
 
       const [followupsRes, attendanceRes, notificationsRes] = await Promise.all([
         supabase.from('sales_followups').select('*').eq('sales_person_id', salespersonRow.id).order('followup_at', { ascending: true }),
@@ -142,45 +427,53 @@ export default function DashboardScreen() {
         supabase.from('notification_logs').select('*').eq('sales_person_id', salespersonRow.id).order('created_at', { ascending: false }).limit(8),
       ]);
 
-      console.log('[dashboard] query status:', {
-        followups: !followupsRes.error,
-        attendance: !attendanceRes.error,
-        notifications: !notificationsRes.error,
-      });
+      const [enquiriesRes, jobsRes] = await Promise.all([
+        (supabase as any)
+          .from('enquiries')
+          .select('id, enq_date, sales_person_id')
+          .eq('sales_person_id', salespersonRow.id)
+          .gte('enq_date', monthBounds.start)
+          .lt('enq_date', monthBounds.next)
+          .order('enq_date', { ascending: false }),
+        (supabase as any)
+          .from('jobs')
+          .select('id, enq_date, sales_person_id')
+          .eq('sales_person_id', salespersonRow.id)
+          .gte('enq_date', monthBounds.start)
+          .lt('enq_date', monthBounds.next)
+          .order('enq_date', { ascending: false }),
+      ]);
 
       if (followupsRes.error) console.error('[dashboard] sales_followups error:', followupsRes.error);
       if (attendanceRes.error) console.error('[dashboard] sales_attendance error:', attendanceRes.error);
       if (notificationsRes.error) console.error('[dashboard] notification_logs error:', notificationsRes.error);
+      if (enquiriesRes.error) console.error('[dashboard] enquiries error:', enquiriesRes.error);
+      if (jobsRes.error) console.error('[dashboard] jobs error:', jobsRes.error);
 
       const followupRows = followupsRes.data || [];
-      const attendanceRows = attendanceRes.data || [];
-      const todayRow = attendanceRows.find((row) => row.attendance_date === today) || null;
+      const attendanceData = attendanceRes.data || [];
+      const notificationData = notificationsRes.data || [];
+      const enquiryData = enquiriesRes.data || [];
+      const jobData = jobsRes.data || [];
+      const todayRow = attendanceData.find((row) => row.attendance_date === today) || null;
 
-      setFollowups(followupRows.slice(0, 5).map(mapSalesFollowup));
+      setFollowups(followupRows);
+      setAttendanceRows(attendanceData);
+      setEnquiryRows(enquiryData);
+      setJobRows(jobData);
+      setNotificationRows(notificationData);
       setTodayAttendance(todayRow ? mapSalesAttendance(todayRow) : null);
-      setNotifications((notificationsRes.data || []).map(mapNotificationLog));
-      setMetrics({
-        totalFollowups: followupRows.length,
-        pendingFollowups: followupRows.filter((row) => !['completed', 'complete', 'done', 'closed'].includes((row.status || '').toLowerCase())).length,
-        attendanceThisWeek: attendanceRows.filter((row) => row.attendance_date >= weekStart).length,
-        notifications: notificationsRes.data?.length || 0,
-        checkedInToday: !!todayRow?.check_in_at,
-      });
-
-      console.log('[dashboard] load success:', {
-        followups: followupRows.length,
-        attendance: attendanceRows.length,
-        notifications: notificationsRes.data?.length || 0,
-      });
+      setTodayAttendanceRow(todayRow || null);
+      setLastSyncedAt(new Date().toISOString());
     } catch (error) {
       console.error('[dashboard] load failed:', error);
     }
-  }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, []),
+    }, [loadData]),
   );
 
   async function onRefresh() {
@@ -192,16 +485,117 @@ export default function DashboardScreen() {
   const displayName = salesperson?.name || mapUserDisplayName(null, null);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const followupStatusBreakdown = followups.reduce<Record<string, { label: string; count: number; tone: string }>>((acc, item) => {
-    const label = item.statusLabel || 'Unknown';
-    if (!acc[label]) {
-      acc[label] = { label, count: 0, tone: item.statusTone };
+
+  const metrics = useMemo<DashboardMetrics>(() => {
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const weekStart = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    const monthStart = getMonthBounds().start;
+    const attendanceThisWeek = attendanceRows.filter((row) => row.attendance_date >= weekStart).length;
+    const visitsThisMonth = attendanceRows.filter((row) => row.attendance_date >= monthStart).length;
+    const todayRow = attendanceRows.find((row) => row.attendance_date === todayKey) || null;
+
+    return {
+      totalFollowups: followups.length,
+      pendingFollowups: followups.filter((row) => !isClosedFollowup(row.status)).length,
+      attendanceThisWeek,
+      enquiriesThisMonth: enquiryRows.length,
+      checkedInToday: !!todayRow?.check_in_at,
+      visitsThisMonth,
+    };
+  }, [attendanceRows, enquiryRows, followups]);
+
+  const upcomingFollowups = useMemo(() => followups.slice(0, 3).map(mapSalesFollowup), [followups]);
+  const recentNotifications = useMemo(() => notificationRows.slice(0, 3).map(mapNotificationLog), [notificationRows]);
+
+  const monthTarget = useMemo(() => ({
+    visits: metrics.visitsThisMonth,
+    enquiries: metrics.enquiriesThisMonth,
+    jobs: jobRows.length,
+  }), [jobRows.length, metrics.enquiriesThisMonth, metrics.visitsThisMonth]);
+
+  const statusEntries = useMemo(() => {
+    const breakdown = followups.reduce<Record<string, { label: string; count: number; tone: string }>>((acc, row) => {
+      const config = getStatusPresentation(row.status);
+      if (!acc[config.label]) {
+        acc[config.label] = {
+          label: config.label,
+          count: 0,
+          tone: config.tone,
+        };
+      }
+      acc[config.label].count += 1;
+      return acc;
+    }, {});
+
+    return Object.values(breakdown).sort((a, b) => b.count - a.count);
+  }, [followups]);
+
+  const highestStatusCount = Math.max(1, ...statusEntries.map((entry) => entry.count));
+
+  const weeklySeries = useMemo(() => {
+    const today = new Date();
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(today);
+      date.setDate(today.getDate() - (6 - index));
+      const key = date.toISOString().slice(0, 10);
+
+      return {
+        key,
+        label: formatWeekday(date),
+        visits: attendanceRows.filter((row) => row.attendance_date === key).length,
+        jobs: jobRows.filter((row) => dateKey(row.enq_date) === key).length,
+        enquiries: enquiryRows.filter((row) => dateKey(row.enq_date) === key).length,
+      };
+    });
+  }, [attendanceRows, enquiryRows, jobRows]);
+
+  const activityItems = useMemo(() => {
+    const items: Array<{
+      key: string;
+      icon: React.ReactNode;
+      title: string;
+      subtitle: string;
+      detail: string;
+      accent: string;
+    }> = [];
+
+    if (todayAttendance) {
+      items.push({
+        key: `attendance-${todayAttendance.id}`,
+        icon: <CheckCircle2 size={14} color={COLORS.white} />,
+        title: 'Checked in',
+        subtitle: todayAttendance.title,
+        detail: todayAttendance.detail || 'Today',
+        accent: COLORS.success,
+      });
     }
-    acc[label].count += 1;
-    return acc;
-  }, {});
-  const followupStatusEntries = Object.values(followupStatusBreakdown).sort((a, b) => b.count - a.count);
-  const highestStatusCount = Math.max(1, ...followupStatusEntries.map((entry) => entry.count));
+
+    if (recentNotifications[0]) {
+      const notification = recentNotifications[0];
+      items.push({
+        key: `notification-${notification.id}`,
+        icon: <Bell size={14} color={COLORS.white} />,
+        title: notification.title,
+        subtitle: notification.subtitle,
+        detail: notification.detail,
+        accent: COLORS.info,
+      });
+    }
+
+    if (upcomingFollowups[0]) {
+      const followup = upcomingFollowups[0];
+      items.push({
+        key: `followup-${followup.id}`,
+        icon: <CalendarClock size={14} color={COLORS.white} />,
+        title: followup.title,
+        subtitle: followup.subtitle,
+        detail: followup.detail,
+        accent: COLORS.warning,
+      });
+    }
+
+    return items.slice(0, 3);
+  }, [recentNotifications, todayAttendance, upcomingFollowups]);
 
   return (
     <View style={styles.screen}>
@@ -212,227 +606,186 @@ export default function DashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
       >
         <View style={styles.page}>
-          <View style={styles.topbar}>
-            <View>
-              <View style={styles.brandRow}>
-                <View style={styles.logoMark}>
-                  <LayoutDashboard size={18} color={COLORS.white} />
-                </View>
-                <Text style={styles.brandLabel}>Logistics Pro</Text>
+          {showAnnouncement ? (
+            <View style={styles.announcementBar}>
+              <View style={styles.announcementCopy}>
+                <Megaphone size={18} color={COLORS.white} />
+                <Text style={styles.announcementText}>
+                  Sales sync is live: follow-ups, attendance, and notification logs refresh on pull.
+                </Text>
               </View>
-              <Text style={styles.pageTitle}>Sales Overview</Text>
-              <Text style={styles.pageSubtitle}>Tabler-style snapshot of live sales activity from Supabase.</Text>
-            </View>
-
-            <View style={styles.actions}>
-              <View style={styles.searchBox}>
-                <Search size={16} color={COLORS.textLight} />
-                <Text style={styles.searchText}>Search leads, visits, follow-ups</Text>
-              </View>
-              <Pressable style={styles.iconButton} onPress={onRefresh}>
-                <RefreshCw size={16} color={COLORS.primary} />
+              <Pressable onPress={() => setShowAnnouncement(false)} style={styles.announcementClose}>
+                <X size={16} color={COLORS.white} />
               </Pressable>
             </View>
-          </View>
+          ) : null}
 
-          <View style={styles.banner}>
-            <View style={styles.bannerCopy}>
-              <View style={styles.bannerEyebrowRow}>
-                <TrendingUp size={14} color={COLORS.primary} />
-                <Text style={styles.bannerEyebrow}>Operations pulse</Text>
-              </View>
-              <Text style={styles.bannerTitle}>{greeting}, {displayName}</Text>
-              <Text style={styles.bannerText}>The dashboard is stitched from follow-ups, attendance, and notification logs so the working set stays visible at a glance.</Text>
-              <View style={styles.bannerMetaRow}>
-                <View style={styles.bannerMeta}>
-                  <CheckCircle2 size={14} color={metrics.checkedInToday ? COLORS.success : COLORS.warning} />
-                  <Text style={styles.bannerMetaText}>{metrics.checkedInToday ? 'Checked in today' : 'Not checked in today'}</Text>
-                </View>
-                <View style={styles.bannerMeta}>
-                  <Clock3 size={14} color={COLORS.textMuted} />
-                  <Text style={styles.bannerMetaText}>{metrics.pendingFollowups} open follow-ups</Text>
-                </View>
-                <View style={styles.bannerMeta}>
-                  <Bell size={14} color={COLORS.info} />
-                  <Text style={styles.bannerMetaText}>{metrics.notifications} recent logs</Text>
-                </View>
-              </View>
+          <View style={styles.pageHeader}>
+            <View style={styles.pageHeaderCopy}>
+              <Text style={styles.pageTitle}>{displayName}</Text>
+              <Text style={styles.pageSubtitle}>Here&apos;s your performance for today.</Text>
             </View>
 
-            <View style={styles.bannerStats}>
-              <View style={styles.bannerStat}>
-                <Text style={styles.bannerStatValue}>{metrics.totalFollowups}</Text>
-                <Text style={styles.bannerStatLabel}>Follow-ups</Text>
-              </View>
-              <View style={styles.bannerStat}>
-                <Text style={styles.bannerStatValue}>{metrics.attendanceThisWeek}</Text>
-                <Text style={styles.bannerStatLabel}>Attendance this week</Text>
-              </View>
-              <View style={styles.bannerStat}>
-                <Text style={styles.bannerStatValue}>{metrics.notifications}</Text>
-                <Text style={styles.bannerStatLabel}>Notification logs</Text>
+            <View style={styles.headerActions}>
+              <MonthTargetCard
+                visits={monthTarget.visits}
+                enquiries={monthTarget.enquiries}
+                jobs={monthTarget.jobs}
+              />
+              <View style={styles.headerButtonStack}>
+                <Pressable
+                  onPress={() => {
+                    router.push('/(tabs)/attendance');
+                  }}
+                  style={({ pressed }) => [styles.headerButton, styles.headerButtonSecondary, pressed && styles.headerButtonPressed]}
+                >
+                  <CalendarClock size={16} color={COLORS.textMuted} />
+                  <Text style={styles.headerButtonSecondaryText}>This Week</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    router.push('/(tabs)/followups');
+                  }}
+                  style={({ pressed }) => [styles.headerButton, styles.headerButtonPrimary, pressed && styles.headerButtonPressed]}
+                >
+                  <Download size={16} color={COLORS.white} />
+                  <Text style={styles.headerButtonPrimaryText}>Export Report</Text>
+                </Pressable>
               </View>
             </View>
           </View>
 
-          <View style={styles.metricGrid}>
-            <MetricCard title="Follow-ups" value={metrics.totalFollowups} subtitle="total assigned" color={COLORS.primary} style={styles.metricCard} icon={<CalendarClock size={18} color={COLORS.primary} />} />
-            <MetricCard title="Pending" value={metrics.pendingFollowups} subtitle="open items" color={COLORS.warning} style={styles.metricCard} icon={<AlertCircle size={18} color={COLORS.warning} />} />
-            <MetricCard title="Attendance" value={metrics.attendanceThisWeek} subtitle="records this week" color={COLORS.success} style={styles.metricCard} icon={<MapPinned size={18} color={COLORS.success} />} />
-            <MetricCard title="Notifications" value={metrics.notifications} subtitle="recent logs" color={COLORS.info} style={styles.metricCard} icon={<Bell size={18} color={COLORS.info} />} />
-          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.metricScroll}
+          >
+            <MetricTile
+              title="Follow-Ups"
+              value={metrics.totalFollowups}
+              subtitle={`${metrics.pendingFollowups} open`}
+              accent={COLORS.primary}
+              icon={<CalendarClock size={22} color={COLORS.primary} />}
+            />
+            <MetricTile
+              title="Visits"
+              value={metrics.visitsThisMonth}
+              subtitle="this month"
+              accent={COLORS.warning}
+              icon={<MapPinned size={22} color={COLORS.warning} />}
+            />
+            <MetricTile
+              title="Enquiries"
+              value={metrics.enquiriesThisMonth}
+              subtitle="this month"
+              accent={COLORS.success}
+              icon={<FileText size={22} color={COLORS.success} />}
+            />
+            <CheckInTile attendance={todayAttendance} attendanceRow={todayAttendanceRow} checkedInToday={metrics.checkedInToday} />
+          </ScrollView>
 
-          <View style={styles.dashboardGrid}>
-            <View style={styles.mainColumn}>
-              <Section title="Today" subtitle="Current attendance state for the signed-in salesperson.">
-                {todayAttendance ? (
-                  <View style={styles.attendanceCard}>
-                    <View style={styles.attendanceHeader}>
-                      <View style={styles.attendanceCopy}>
-                        <Text style={styles.attendanceTitle}>{todayAttendance.title}</Text>
-                        <Text style={styles.attendanceSubtitle}>{todayAttendance.subtitle}</Text>
+          <ChartSection series={weeklySeries} />
+
+          <View style={styles.bottomGrid}>
+            <DashboardSection
+              title="Upcoming Follow-ups"
+              subtitle="Ordered by scheduled time from sales_followups."
+              actionLabel="Schedule"
+              onAction={() => router.push('/(tabs)/followups')}
+            >
+              {upcomingFollowups.length === 0 ? (
+                <EmptyState
+                  icon={<CalendarClock size={28} color={COLORS.textLight} />}
+                  title="No follow-ups yet"
+                  subtitle="Create your first follow-up from the follow-up tab."
+                />
+              ) : (
+                <View style={styles.cardList}>
+                  {upcomingFollowups.map((followup, index) => (
+                    <View key={followup.id} style={[styles.cardRow, index > 0 && styles.cardRowBorder]}>
+                      <View style={styles.cardRowCopy}>
+                        <Text style={styles.cardRowTitle}>{followup.title}</Text>
+                        <Text style={styles.cardRowSubtitle}>{followup.subtitle}</Text>
                       </View>
-                      <StatusBadge status={todayAttendance.statusLabel} />
+                      <View style={styles.cardRowMeta}>
+                        <Text style={styles.cardRowDetail}>{followup.detail}</Text>
+                        <StatusBadge status={followup.statusLabel} />
+                      </View>
                     </View>
-                    <View style={styles.attendanceMetaGrid}>
-                      <View style={styles.attendanceMeta}>
-                        <Text style={styles.attendanceMetaLabel}>Detail</Text>
-                        <Text style={styles.attendanceMetaValue}>{todayAttendance.detail}</Text>
+                  ))}
+                </View>
+              )}
+            </DashboardSection>
+
+            <DashboardSection
+              title="Recent Activity"
+              subtitle="A live feed stitched from attendance and notifications."
+              actionLabel="View All"
+              onAction={() => router.push('/(tabs)/attendance')}
+            >
+              {activityItems.length === 0 ? (
+                <EmptyState
+                  icon={<Users size={28} color={COLORS.textLight} />}
+                  title="No activity yet"
+                  subtitle="New attendance or notification entries will appear here."
+                />
+              ) : (
+                <View style={styles.timeline}>
+                  {activityItems.map((item) => (
+                    <ActivityItem
+                      key={item.key}
+                      icon={item.icon}
+                      title={item.title}
+                      subtitle={item.subtitle}
+                      detail={item.detail}
+                      accent={item.accent}
+                    />
+                  ))}
+                </View>
+              )}
+            </DashboardSection>
+
+            <DashboardSection title="Lead Status Distribution" subtitle="A quick distribution of the current working set.">
+              {statusEntries.length === 0 ? (
+                <EmptyState
+                  icon={<ShieldCheck size={28} color={COLORS.textLight} />}
+                  title="No status data"
+                  subtitle="Status buckets will appear once follow-ups are loaded."
+                />
+              ) : (
+                <View style={styles.breakdownStack}>
+                  {statusEntries.map((entry) => (
+                    <View key={entry.label} style={styles.breakdownItem}>
+                      <View style={styles.breakdownHead}>
+                        <Text style={styles.breakdownLabel}>{entry.label}</Text>
+                        <Text style={styles.breakdownValue}>{entry.count}</Text>
                       </View>
-                      <View style={styles.attendanceMeta}>
-                        <Text style={styles.attendanceMetaLabel}>State</Text>
-                        <Text style={styles.attendanceMetaValue}>{todayAttendance.statusLabel}</Text>
+                      <View style={styles.breakdownTrack}>
+                        <View
+                          style={[
+                            styles.breakdownFill,
+                            {
+                              width: `${Math.max(8, Math.round((entry.count / highestStatusCount) * 100))}%`,
+                              backgroundColor: toneColor(entry.tone),
+                            },
+                          ]}
+                        />
                       </View>
                     </View>
-                  </View>
-                ) : (
-                  <EmptyState icon={<Users size={28} color={COLORS.textLight} />} title="No attendance record today" subtitle="Open the attendance tab to check in." />
-                )}
-              </Section>
-
-              <Section title="Recent Follow-ups" subtitle="Ordered by scheduled time from sales_followups.">
-                {followups.length === 0 ? (
-                  <EmptyState icon={<CalendarClock size={28} color={COLORS.textLight} />} title="No follow-ups yet" subtitle="Create your first follow-up from the follow-up tab." />
-                ) : (
-                  followups.map((followup, index) => (
-                    <ListRow
-                      key={followup.id}
-                      icon={<CalendarClock size={14} color={COLORS.warning} />}
-                      title={followup.title}
-                      subtitle={followup.subtitle}
-                      detail={followup.detail}
-                      status={followup.statusLabel}
-                      accent={COLORS.warningLight}
-                      bordered={index > 0}
-                    />
-                  ))
-                )}
-              </Section>
-
-              <Section title="Recent Notifications" subtitle="Live notification_logs from Supabase.">
-                {notifications.length === 0 ? (
-                  <EmptyState icon={<Bell size={28} color={COLORS.textLight} />} title="No notification logs" subtitle="Notification history will appear here." />
-                ) : (
-                  notifications.map((entry, index) => (
-                    <ListRow
-                      key={entry.id}
-                      icon={<Bell size={14} color={COLORS.info} />}
-                      title={entry.title}
-                      subtitle={entry.subtitle}
-                      detail={entry.detail}
-                      status={entry.statusLabel}
-                      accent={COLORS.infoLight}
-                      bordered={index > 0}
-                    />
-                  ))
-                )}
-              </Section>
-            </View>
-
-            <View style={styles.sideColumn}>
-              <Section title="Follow-up status" subtitle="A quick distribution of the current working set.">
-                {followupStatusEntries.length === 0 ? (
-                  <EmptyState icon={<ShieldCheck size={28} color={COLORS.textLight} />} title="No status data" subtitle="Follow-up status buckets will appear once items are loaded." />
-                ) : (
-                  <View style={styles.breakdownStack}>
-                    {followupStatusEntries.map((entry) => {
-                      const width = `${Math.max(8, Math.round((entry.count / highestStatusCount) * 100))}%`;
-                      return (
-                        <View key={entry.label} style={styles.breakdownItem}>
-                          <View style={styles.breakdownHead}>
-                            <Text style={styles.breakdownLabel}>{entry.label}</Text>
-                            <Text style={styles.breakdownValue}>{entry.count}</Text>
-                          </View>
-                          <View style={styles.breakdownTrack}>
-                      <View style={[styles.breakdownFill, { width: `${Math.max(0, Math.min(100, Math.round((entry.count / highestStatusCount) * 100)))}%`, backgroundColor: toneColor(entry.tone) }]} />
-                          </View>
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
-              </Section>
-
-              <Section title="Sync Status" subtitle="Basic runtime trace for Supabase wiring.">
-                <View style={styles.statusStack}>
-                  <View style={styles.statusLine}>
-                    <Text style={styles.statusLabel}>Auth</Text>
-                    <Text style={styles.statusValue}>supabase.auth.getUser()</Text>
-                  </View>
-                  <View style={styles.statusLine}>
-                    <Text style={styles.statusLabel}>Session</Text>
-                    <Text style={styles.statusValue}>resolveSalespersonSession()</Text>
-                  </View>
-                  <View style={styles.statusLine}>
-                    <Text style={styles.statusLabel}>Tables</Text>
-                    <Text style={styles.statusValue}>sales_persons, sales_followups, sales_attendance, notification_logs</Text>
-                  </View>
-                  <View style={styles.statusLine}>
-                    <Text style={styles.statusLabel}>Result</Text>
-                    <Text style={[styles.statusValue, { color: salesperson ? COLORS.success : COLORS.warning }]}>{salesperson ? 'Connected' : 'No salesperson mapped'}</Text>
-                  </View>
+                  ))}
                 </View>
-              </Section>
+              )}
+            </DashboardSection>
+          </View>
 
-              <Section title="Operational Snapshot" subtitle="The fields already exist in the current schema.">
-                <View style={styles.snapshotHeader}>
-                  <View style={styles.snapshotAvatar}>
-                    <Users size={18} color={COLORS.primary} />
-                  </View>
-                  <View style={styles.snapshotCopy}>
-                    <Text style={styles.snapshotName}>{salesperson?.name || 'Unresolved'}</Text>
-                    <Text style={styles.snapshotRole}>{salesperson?.subtitle || 'No metadata'}</Text>
-                  </View>
-                </View>
-                <View style={styles.snapshotItem}>
-                  <Text style={styles.snapshotLabel}>Contact</Text>
-                  <Text style={styles.snapshotValue}>{salesperson?.meta || 'No contact info'}</Text>
-                </View>
-                <View style={styles.snapshotItem}>
-                  <Text style={styles.snapshotLabel}>Status</Text>
-                  <Text style={styles.snapshotValue}>{salesperson?.statusLabel || 'Unresolved'}</Text>
-                </View>
-              </Section>
-
-              <Section title="Source Coverage" subtitle="Quick read on what the dashboard actually queried.">
-                <View style={styles.coverageRow}>
-                  <Text style={styles.coverageLabel}>sales_followups</Text>
-                  <Text style={styles.coverageValue}>{metrics.totalFollowups}</Text>
-                </View>
-                <View style={styles.coverageRow}>
-                  <Text style={styles.coverageLabel}>sales_attendance</Text>
-                  <Text style={styles.coverageValue}>{metrics.attendanceThisWeek}</Text>
-                </View>
-                <View style={styles.coverageRow}>
-                  <Text style={styles.coverageLabel}>notification_logs</Text>
-                  <Text style={styles.coverageValue}>{metrics.notifications}</Text>
-                </View>
-              </Section>
-
-              <View style={styles.footerNote}>
-                <TrendingUp size={14} color={COLORS.success} />
-                <Text style={styles.footerNoteText}>Console logs show load start, auth/session state, table query status, and success/failure.</Text>
-              </View>
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              {lastSyncedAt ? `Last synced ${formatClock(lastSyncedAt)}` : 'Waiting for data sync'}
+            </Text>
+            <View style={styles.footerLinks}>
+              <Text style={styles.footerLink}>System Status</Text>
+              <Text style={styles.footerLink}>Help Center</Text>
+              <Text style={styles.footerLink}>Privacy Policy</Text>
             </View>
           </View>
         </View>
@@ -442,160 +795,630 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: COLORS.bg },
-  scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 20 },
-  page: { width: '100%', maxWidth: 1220, alignSelf: 'center', paddingHorizontal: 16, paddingTop: 16, gap: 16 },
-  topbar: {
+  screen: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
+  },
+  page: {
+    width: '100%',
+    maxWidth: 1220,
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    gap: 16,
+  },
+  announcementBar: {
+    backgroundColor: COLORS.gray700,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
+  },
+  announcementCopy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  announcementText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: COLORS.white,
+    fontWeight: '600',
+  },
+  announcementClose: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    flexWrap: 'wrap',
+  },
+  pageHeaderCopy: {
+    flex: 1,
+    minWidth: 240,
+  },
+  pageTitle: {
+    fontSize: 30,
+    lineHeight: 38,
+    fontWeight: '800',
+    color: COLORS.text,
+    letterSpacing: -0.4,
+  },
+  pageSubtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    lineHeight: 20,
+    color: COLORS.textMuted,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  headerButtonStack: {
+    flexDirection: 'column',
+    gap: 10,
+  },
+  monthCard: {
+    width: 420,
+    minWidth: 420,
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 16,
     gap: 12,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 1,
   },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
-  logoMark: { width: 32, height: 32, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
-  brandLabel: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  pageTitle: { fontSize: 24, fontWeight: '800', color: COLORS.text },
-  pageSubtitle: { marginTop: 4, fontSize: 13, color: COLORS.textMuted },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
-  searchBox: {
+  monthCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  monthCardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  monthCardSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    color: COLORS.text,
+  },
+  monthCardChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    height: 40,
-    minWidth: 280,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.gray50,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: COLORS.primaryLight,
   },
-  searchText: { fontSize: 13, color: COLORS.textLight, flexShrink: 1 },
-  iconButton: { width: 40, height: 40, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
-  banner: {
+  monthCardChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  monthCardRows: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  monthCardRow: {
+    flex: 1,
+    minWidth: 0,
+    gap: 6,
+  },
+  monthCardRowHead: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 2,
+  },
+  monthCardRowLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  monthCardRowValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  monthCardTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: COLORS.gray100,
+    overflow: 'hidden',
+  },
+  monthCardFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  headerButton: {
+    minHeight: 40,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    alignSelf: 'stretch',
+  },
+  headerButtonSecondary: {
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: 20,
+  },
+  headerButtonPrimary: {
+    backgroundColor: COLORS.primary,
+  },
+  headerButtonPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.98 }],
+  },
+  headerButtonSecondaryText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+  },
+  headerButtonPrimaryText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.white,
+  },
+  metricGrid: {
     flexDirection: 'row',
-    alignItems: 'stretch',
-    justifyContent: 'space-between',
-    gap: 16,
+    gap: 12,
     flexWrap: 'wrap',
   },
-  bannerCopy: { flex: 1, minWidth: 280 },
-  bannerEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  bannerEyebrow: { fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: '700' },
-  bannerTitle: { fontSize: 26, fontWeight: '800', color: COLORS.text, letterSpacing: 0 },
-  bannerText: { marginTop: 8, maxWidth: 720, fontSize: 14, lineHeight: 20, color: COLORS.textMuted },
-  bannerMetaRow: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  bannerMeta: {
+  metricScroll: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 12,
+    paddingRight: 2,
+  },
+  metricCard: {
+    width: 250,
+    minWidth: 250,
+    flexGrow: 0,
+    flexShrink: 0,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    padding: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 1,
+  },
+  metricIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metricCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  metricLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  metricValue: {
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: '800',
+  },
+  metricSubtitle: {
+    fontSize: 12,
+    color: COLORS.text,
+  },
+  checkInCard: {
+    flexGrow: 1,
+    flexBasis: 280,
+    minWidth: 240,
+    backgroundColor: '#f0edda',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    padding: 18,
+    gap: 12,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 1,
+  },
+  checkInHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  checkInBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: COLORS.gray50,
+  },
+  checkInDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+  },
+  checkInBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  checkInBody: {
+    gap: 10,
+  },
+  checkInStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  checkInTime: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: '600',
+  },
+  checkInLocationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.gray50,
   },
-  bannerMetaText: { fontSize: 12, fontWeight: '600', color: COLORS.text },
-  bannerStats: { width: 320, maxWidth: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignSelf: 'flex-start' },
-  bannerStat: {
-    flexGrow: 1,
-    flexBasis: 96,
-    minWidth: 96,
-    padding: 14,
-    borderRadius: 8,
+  checkInLocationText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  checkInSubtitle: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.text,
+  },
+  checkInEmpty: {
+    minHeight: 72,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  checkInEmptyText: {
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: '600',
+  },
+  chartCard: {
+    backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.gray50,
+    borderRadius: 12,
+    padding: 18,
+    gap: 20,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 1,
+  },
+  chartHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+    flexWrap: 'wrap',
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    flexWrap: 'wrap',
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+  },
+  legendText: {
+    fontSize: 12,
+    color: COLORS.text,
+    fontWeight: '600',
+  },
+  chartArea: {
+    height: 220,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  chartColumn: {
+    flex: 1,
+    minWidth: 34,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
+    height: '100%',
+  },
+  chartBars: {
+    flex: 1,
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: 2,
+  },
+  chartBar: {
+    flex: 1,
+    maxWidth: 10,
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 4,
+  },
+  chartBarPrimary: {
+    backgroundColor: COLORS.primary,
+  },
+  chartBarSuccess: {
+    backgroundColor: COLORS.success,
+  },
+  chartBarWarning: {
+    backgroundColor: COLORS.warning,
+  },
+  chartLabel: {
+    fontSize: 10,
+    color: COLORS.text,
+    width: '100%',
+    textAlign: 'center',
+  },
+  chartFooter: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingTop: 14,
+    alignItems: 'flex-end',
+  },
+  linkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  linkButtonPressed: {
+    opacity: 0.8,
+  },
+  linkButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  bottomGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    flexWrap: 'wrap',
+    alignItems: 'stretch',
+  },
+  section: {
+    flexGrow: 1,
+    flexBasis: 320,
+    gap: 10,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    lineHeight: 26,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  sectionSubtitle: {
+    marginTop: 2,
+    fontSize: 13,
+    lineHeight: 18,
+    color: COLORS.text,
+  },
+  sectionAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sectionActionPressed: {
+    opacity: 0.75,
+  },
+  sectionActionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  sectionCard: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 1,
+  },
+  cardList: {
+    padding: 12,
+  },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingVertical: 12,
+  },
+  cardRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  cardRowCopy: {
+    flex: 1,
     gap: 4,
   },
-  bannerStatValue: { fontSize: 24, fontWeight: '800', color: COLORS.text },
-  bannerStatLabel: { fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: '700' },
-  hero: {
-    backgroundColor: '#0f172a',
-    borderRadius: 8,
-    padding: 20,
+  cardRowTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  cardRowSubtitle: {
+    fontSize: 12,
+    color: COLORS.text,
+  },
+  cardRowMeta: {
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  cardRowDetail: {
+    fontSize: 12,
+    color: COLORS.text,
+    fontWeight: '600',
+  },
+  timeline: {
+    padding: 16,
+    gap: 18,
+  },
+  timelineItem: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  timelineDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  timelineBody: {
+    flex: 1,
+    gap: 4,
+  },
+  timelineTitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: COLORS.text,
+  },
+  timelineTitleStrong: {
+    fontWeight: '700',
+  },
+  timelineDetail: {
+    fontSize: 12,
+    color: COLORS.text,
+  },
+  breakdownStack: {
+    gap: 14,
+    padding: 16,
+  },
+  breakdownItem: {
+    gap: 8,
+  },
+  breakdownHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
+  },
+  breakdownLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  breakdownValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  breakdownTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: COLORS.gray100,
+    overflow: 'hidden',
+  },
+  breakdownFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  footer: {
+    paddingTop: 6,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  footerText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+  },
+  footerLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 16,
     flexWrap: 'wrap',
   },
-  heroCopy: { flex: 1, minWidth: 280 },
-  heroGreeting: { fontSize: 13, color: 'rgba(255,255,255,0.72)' },
-  heroName: { fontSize: 28, fontWeight: '800', color: COLORS.white, marginTop: 2 },
-  heroText: { marginTop: 8, maxWidth: 720, fontSize: 14, lineHeight: 20, color: 'rgba(255,255,255,0.8)' },
-  heroStatus: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  heroStatusText: { fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
-  heroSide: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
-  heroStat: {
-    width: 150,
-    minHeight: 118,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    padding: 14,
-    justifyContent: 'space-between',
+  footerLink: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontWeight: '600',
   },
-  heroStatValue: { fontSize: 30, fontWeight: '800', color: COLORS.white },
-  heroStatLabel: { fontSize: 12, color: 'rgba(255,255,255,0.72)' },
-  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  metricCard: { flexGrow: 1, flexBasis: 220, minWidth: 220 },
-  dashboardGrid: { flexDirection: 'row', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' },
-  mainColumn: { flex: 1, minWidth: 320, gap: 16 },
-  sideColumn: { width: 340, maxWidth: '100%', gap: 16 },
-  section: { gap: 8 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  sectionSubtitle: { marginTop: 2, fontSize: 12, color: COLORS.textMuted },
-  panel: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 },
-  rowBorder: { borderTopWidth: 1, borderTopColor: COLORS.border },
-  rowIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  rowBody: { flex: 1, gap: 2 },
-  rowTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
-  rowSub: { fontSize: 12, color: COLORS.textMuted },
-  rowMeta: { fontSize: 11, color: COLORS.textLight },
-  rowTrail: { alignItems: 'flex-end' },
-  attendanceCard: { padding: 14, gap: 12 },
-  attendanceHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  attendanceCopy: { flex: 1, minWidth: 0, gap: 2 },
-  attendanceTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  attendanceSubtitle: { fontSize: 12, color: COLORS.textMuted, lineHeight: 18 },
-  attendanceMetaGrid: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
-  attendanceMeta: { flexGrow: 1, flexBasis: 160, gap: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border },
-  attendanceMetaLabel: { fontSize: 11, color: COLORS.textLight, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: '700' },
-  attendanceMetaValue: { fontSize: 13, color: COLORS.text, fontWeight: '600', lineHeight: 18 },
-  breakdownStack: { gap: 14, padding: 14 },
-  breakdownItem: { gap: 8 },
-  breakdownHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  breakdownLabel: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
-  breakdownValue: { fontSize: 13, color: COLORS.textMuted, fontWeight: '700' },
-  breakdownTrack: { height: 8, borderRadius: 999, backgroundColor: COLORS.gray100, overflow: 'hidden' },
-  breakdownFill: { height: '100%', borderRadius: 999 },
-  statusStack: { gap: 10, padding: 14 },
-  statusLine: { gap: 4 },
-  statusLabel: { fontSize: 11, color: COLORS.textLight, textTransform: 'uppercase', letterSpacing: 0.4 },
-  statusValue: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
-  snapshotHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  snapshotAvatar: { width: 36, height: 36, borderRadius: 8, backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center' },
-  snapshotCopy: { flex: 1, gap: 2 },
-  snapshotName: { fontSize: 14, fontWeight: '700', color: COLORS.text },
-  snapshotRole: { fontSize: 12, color: COLORS.textMuted },
-  snapshotItem: { padding: 14, borderTopWidth: 1, borderTopColor: COLORS.border, gap: 4 },
-  snapshotLabel: { fontSize: 11, color: COLORS.textLight, textTransform: 'uppercase', letterSpacing: 0.4 },
-  snapshotValue: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
-  coverageRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: COLORS.border },
-  coverageLabel: { fontSize: 13, color: COLORS.text },
-  coverageValue: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
-  footerNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4 },
-  footerNoteText: { flex: 1, fontSize: 12, lineHeight: 18, color: COLORS.textMuted },
 });

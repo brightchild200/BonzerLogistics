@@ -1,0 +1,462 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Logistics Pro - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+    <script id="tailwind-config">
+          tailwind.config = {
+            darkMode: "class",
+            theme: {
+              extend: {
+                "colors": {
+                        "error": "#ba1a1a",
+                        "slate-text": "#475569",
+                        "on-secondary-container": "#004470",
+                        "on-secondary-fixed": "#001d34",
+                        "surface-container-low": "#f2f4f7",
+                        "border-subtle": "#E2E8F0",
+                        "on-tertiary": "#ffffff",
+                        "on-surface-variant": "#424752",
+                        "on-secondary": "#ffffff",
+                        "status-followup": "#F59E0B",
+                        "on-primary": "#ffffff",
+                        "on-primary-container": "#e7edff",
+                        "inverse-surface": "#2d3133",
+                        "on-error-container": "#93000a",
+                        "tertiary": "#495369",
+                        "on-primary-fixed": "#001b3d",
+                        "tertiary-fixed": "#d8e2fd",
+                        "inverse-primary": "#a8c8ff",
+                        "background": "#f7f9fc",
+                        "inverse-on-surface": "#eff1f4",
+                        "secondary": "#00629d",
+                        "on-background": "#191c1e",
+                        "secondary-fixed": "#cfe5ff",
+                        "outline": "#727783",
+                        "secondary-container": "#61b4fd",
+                        "on-tertiary-fixed-variant": "#3d475c",
+                        "on-tertiary-container": "#e8edff",
+                        "tertiary-container": "#616b82",
+                        "surface-container-lowest": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "primary": "#0052a1",
+                        "status-contacted": "#6366F1",
+                        "status-won": "#10B981",
+                        "on-secondary-fixed-variant": "#004a78",
+                        "primary-fixed-dim": "#a8c8ff",
+                        "on-error": "#ffffff",
+                        "status-lost": "#EF4444",
+                        "secondary-fixed-dim": "#99cbff",
+                        "primary-container": "#206bc4",
+                        "surface-variant": "#e0e3e6",
+                        "surface-container-highest": "#e0e3e6",
+                        "on-primary-fixed-variant": "#00468b",
+                        "outline-variant": "#c2c6d4",
+                        "tertiary-fixed-dim": "#bcc6e1",
+                        "surface-tint": "#005db5",
+                        "status-new": "#206BC4",
+                        "surface": "#f7f9fc",
+                        "surface-bright": "#f7f9fc",
+                        "surface-container-high": "#e6e8eb",
+                        "on-tertiary-fixed": "#111b2f",
+                        "on-surface": "#191c1e",
+                        "surface-container": "#eceef1",
+                        "surface-dim": "#d8dadd",
+                        "primary-fixed": "#d6e3ff"
+                },
+                "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                },
+                "spacing": {
+                        "stack-lg": "2rem",
+                        "gutter": "1.5rem",
+                        "sidebar-width": "260px",
+                        "stack-sm": "0.5rem",
+                        "container-padding": "2rem",
+                        "stack-md": "1rem"
+                },
+                "fontFamily": {
+                        "headline-sm": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "mono-data": ["Inter"],
+                        "label-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"]
+                },
+                "fontSize": {
+                        "headline-sm": ["18px", {"lineHeight": "26px", "fontWeight": "600"}],
+                        "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "mono-data": ["13px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                }
+              },
+            },
+          }
+        </script>
+    <style>
+            body { font-family: 'Inter', sans-serif; }
+            .material-symbols-outlined {
+                font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+                vertical-align: middle;
+            }
+            .sidebar-future { filter: grayscale(1); opacity: 0.6; }
+            .sidebar-future:hover { filter: grayscale(0); opacity: 1; }
+            .timeline-line::before {
+                content: '';
+                position: absolute;
+                left: 0.75rem;
+                top: 0.5rem;
+                bottom: 0;
+                width: 1px;
+                background-color: #E2E8F0;
+            }
+            .chart-bar { transition: height 1s ease-in-out; }
+        </style>
+    </head>
+    <body class="bg-background text-on-surface">
+    <!-- SideNavBar (Shared Component) -->
+    <aside class="fixed left-0 top-0 h-full w-[260px] bg-surface border-r border-border-subtle flex flex-col py-6 px-4 z-50">
+    <div class="mb-8 px-2">
+    <h1 class="text-headline-md font-headline-md font-bold text-primary">Logistics Pro</h1>
+    <p class="text-label-md font-label-md text-on-surface-variant">Sales Management</p>
+    </div>
+    <button class="mb-8 w-full py-3 bg-primary-container text-on-primary rounded-lg font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+    <span class="material-symbols-outlined">add</span>
+                New Lead
+            </button>
+    <nav class="flex-1 flex flex-col gap-1">
+    <a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-lg font-bold transition-colors duration-200" href="#">
+    <span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+    <span class="font-label-md text-label-md">Dashboard</span>
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-surface-container-high rounded-lg transition-colors duration-200" href="#">
+    <span class="material-symbols-outlined" data-icon="location_on">location_on</span>
+    <span class="font-label-md text-label-md">Attendance</span>
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-surface-container-high rounded-lg transition-colors duration-200" href="#">
+    <span class="material-symbols-outlined" data-icon="person_search">person_search</span>
+    <span class="font-label-md text-label-md">Leads</span>
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-surface-container-high rounded-lg transition-colors duration-200" href="#">
+    <span class="material-symbols-outlined" data-icon="event_repeat">event_repeat</span>
+    <span class="font-label-md text-label-md">Follow-Ups</span>
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-surface-container-high rounded-lg transition-colors duration-200" href="#">
+    <span class="material-symbols-outlined" data-icon="route">route</span>
+    <span class="font-label-md text-label-md">Customer Visits</span>
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-surface-container-high rounded-lg transition-colors duration-200" href="#">
+    <span class="material-symbols-outlined" data-icon="person">person</span>
+    <span class="font-label-md text-label-md">Profile</span>
+    </a>
+    <div class="mt-8 mb-2 px-4">
+    <p class="text-label-caps font-label-caps text-outline uppercase">Extensions</p>
+    </div>
+    <a class="sidebar-future flex items-center gap-3 px-4 py-3 text-on-surface-variant rounded-lg transition-all group relative" href="#">
+    <span class="material-symbols-outlined" data-icon="rocket_launch">rocket_launch</span>
+    <span class="font-label-md text-label-md">Future Modules</span>
+    <div class="absolute left-full ml-2 px-2 py-1 bg-inverse-surface text-inverse-on-surface text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Coming Soon</div>
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-surface-container-high rounded-lg transition-colors duration-200" href="#">
+    <span class="material-symbols-outlined" data-icon="settings">settings</span>
+    <span class="font-label-md text-label-md">Settings</span>
+    </a>
+    </nav>
+    <div class="mt-auto pt-6 border-t border-border-subtle flex items-center gap-3 px-2">
+    <img alt="User Avatar" class="w-10 h-10 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA6vY6U9lcr9_wTpYcH9z9ztsAl-vMKJkVMZOMOaNbgmGp_fKljYamGWjtX8y2BcZvqLa36kfVTL9vLYLfBKnZqkERo9pCcoGVC1hvyigjyU36V63SS6bfGKD9zsfpYWlIM8piq_XyLRaHx84BdGj6dYfMvooIqmc0MSU7doWHKxEjk1X1QMdVL7zSVuCHMZ_wZsDl_xXIl9WOl2jYaQqwOBGntIWDJPx69SNu3iFF6TBTMm2DDyttqiaPlHjBZfGt192SLLgXU6IU">
+    <div>
+    <p class="font-label-md text-label-md font-bold">Alex Rivera</p>
+    <p class="text-[10px] text-on-surface-variant">Regional Sales Manager</p>
+    </div>
+    </div>
+    </aside>
+    <!-- Main Content Wrapper -->
+    <main class="ml-[260px] min-h-screen flex flex-col">
+    <!-- 1. Announcement Bar -->
+    <div class="bg-tertiary-fixed text-on-tertiary-fixed px-gutter py-2 flex items-center justify-between text-label-md font-medium border-b border-outline-variant/30">
+    <div class="flex items-center gap-3">
+    <span class="material-symbols-outlined text-[20px]">campaign</span>
+    <span class="">System Maintenance: The server will be undergoing scheduled updates tonight at 11:00 PM EST.</span>
+    </div>
+    <button class="hover:bg-tertiary-fixed-dim p-1 rounded-full flex items-center">
+    <span class="material-symbols-outlined text-[16px]">close</span>
+    </button>
+    </div>
+    <!-- Dashboard Canvas -->
+    <div class="p-gutter flex flex-col gap-stack-lg">
+    <!-- Page Header -->
+    <div class="flex items-center justify-between">
+    <div>
+    <h2 class="font-headline-lg text-headline-lg text-on-surface">Sales Overview</h2>
+    <p class="text-body-md font-body-md text-on-surface-variant">Welcome back, Alex. Here's your performance for today.</p>
+    </div>
+    <div class="flex items-center gap-3">
+    <button class="flex items-center gap-2 px-4 py-2 border border-border-subtle bg-surface-container-lowest text-on-surface-variant rounded-lg font-label-md text-label-md hover:bg-surface-container-low transition-all">
+    <span class="material-symbols-outlined text-[18px]">calendar_today</span>
+                            This Week
+                        </button>
+    <button class="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-label-md text-label-md shadow-sm hover:opacity-90 transition-all active:scale-95">
+    <span class="material-symbols-outlined text-[18px]">file_download</span>
+                            Export Report
+                        </button>
+    </div>
+    </div>
+    <!-- 5. Sales Overview Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter">
+    
+    <div class="bg-surface-container-lowest p-5 border border-border-subtle rounded-xl flex items-center gap-4">
+    <div class="w-12 h-12 rounded-lg bg-status-followup/10 flex items-center justify-center text-status-followup">
+    <span class="material-symbols-outlined text-3xl">event_upcoming</span>
+    </div>
+    <div>
+    <p class="text-label-md font-label-md text-on-surface-variant">Follow-Ups</p>
+    <h3 class="text-headline-md font-headline-md font-bold">18</h3>
+    </div>
+    </div>
+    <div class="bg-surface-container-lowest p-5 border border-border-subtle rounded-xl flex items-center gap-4">
+    <div class="w-12 h-12 rounded-lg bg-status-contacted/10 flex items-center justify-center text-status-contacted">
+    <span class="material-symbols-outlined text-3xl">near_me</span>
+    </div>
+    <div>
+    <p class="text-label-md font-label-md text-on-surface-variant">Visits</p>
+    <h3 class="text-headline-md font-headline-md font-bold">6/8</h3>
+    </div>
+    </div>
+    <div class="bg-surface-container-lowest p-5 border border-border-subtle rounded-xl flex items-center gap-4"><div class="flex flex-col w-full"><div class="flex items-center justify-between mb-1"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-status-won animate-pulse"></span><span class="font-bold text-status-won text-label-md">Checked In</span></div><span class="text-[10px] font-mono-data text-on-surface-variant">09:00 AM</span></div><div class="flex items-center gap-1 text-on-surface-variant"><span class="material-symbols-outlined text-[16px]">location_on</span><span class="text-body-sm truncate">Downtown Hub</span></div></div></div>
+    </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start">
+    <!-- Left Section: Compact Attendance -->
+    
+    <!-- 4. Expanded Performance Overview -->
+    <div class="flex flex-col gap-gutter lg:col-span-12">
+    <div class="bg-surface-container-lowest border border-border-subtle rounded-xl p-6 shadow-sm">
+    <div class="flex items-center justify-between mb-8">
+    <div>
+    <h3 class="font-headline-sm text-headline-sm">Performance Overview</h3>
+    <p class="text-body-sm text-on-surface-variant">Total Visits, Jobs, and Enquiries over time</p>
+    </div>
+    <div class="flex gap-4">
+    <div class="flex items-center gap-2">
+    <span class="w-3 h-3 rounded-full bg-primary"></span>
+    <span class="text-label-md">Visits</span>
+    </div>
+    <div class="flex items-center gap-2">
+    <span class="w-3 h-3 rounded-full bg-status-won"></span>
+    <span class="text-label-md">Jobs</span>
+    </div>
+    <div class="flex items-center gap-2">
+    <span class="w-3 h-3 rounded-full bg-status-followup"></span>
+    <span class="text-label-md">Enquiries</span>
+    </div>
+    </div>
+    </div>
+    <div class="h-64 w-full flex items-end justify-between gap-4 px-2">
+    <!-- Visual Bar Chart Representation -->
+    <div class="flex-1 flex items-end gap-1 h-full relative">
+    <div class="flex-1 bg-primary rounded-t-sm chart-bar" style="height: 60%"></div>
+    <div class="flex-1 bg-status-won rounded-t-sm chart-bar" style="height: 40%"></div>
+    <div class="flex-1 bg-status-followup rounded-t-sm chart-bar" style="height: 20%"></div>
+    <div class="absolute -bottom-6 w-full text-center text-[10px] text-on-surface-variant">Mon</div>
+    </div>
+    <div class="flex-1 flex items-end gap-1 h-full relative">
+    <div class="flex-1 bg-primary rounded-t-sm chart-bar" style="height: 75%"></div>
+    <div class="flex-1 bg-status-won rounded-t-sm chart-bar" style="height: 55%"></div>
+    <div class="flex-1 bg-status-followup rounded-t-sm chart-bar" style="height: 35%"></div>
+    <div class="absolute -bottom-6 w-full text-center text-[10px] text-on-surface-variant">Tue</div>
+    </div>
+    <div class="flex-1 flex items-end gap-1 h-full relative">
+    <div class="flex-1 bg-primary rounded-t-sm chart-bar" style="height: 45%"></div>
+    <div class="flex-1 bg-status-won rounded-t-sm chart-bar" style="height: 35%"></div>
+    <div class="flex-1 bg-status-followup rounded-t-sm chart-bar" style="height: 65%"></div>
+    <div class="absolute -bottom-6 w-full text-center text-[10px] text-on-surface-variant">Wed</div>
+    </div>
+    <div class="flex-1 flex items-end gap-1 h-full relative">
+    <div class="flex-1 bg-primary rounded-t-sm chart-bar" style="height: 90%"></div>
+    <div class="flex-1 bg-status-won rounded-t-sm chart-bar" style="height: 80%"></div>
+    <div class="flex-1 bg-status-followup rounded-t-sm chart-bar" style="height: 40%"></div>
+    <div class="absolute -bottom-6 w-full text-center text-[10px] text-on-surface-variant">Thu</div>
+    </div>
+    <div class="flex-1 flex items-end gap-1 h-full relative">
+    <div class="flex-1 bg-primary rounded-t-sm chart-bar" style="height: 65%"></div>
+    <div class="flex-1 bg-status-won rounded-t-sm chart-bar" style="height: 70%"></div>
+    <div class="flex-1 bg-status-followup rounded-t-sm chart-bar" style="height: 30%"></div>
+    <div class="absolute -bottom-6 w-full text-center text-[10px] text-on-surface-variant">Fri</div>
+    </div>
+    <div class="flex-1 flex items-end gap-1 h-full relative">
+    <div class="flex-1 bg-primary rounded-t-sm chart-bar" style="height: 30%"></div>
+    <div class="flex-1 bg-status-won rounded-t-sm chart-bar" style="height: 20%"></div>
+    <div class="flex-1 bg-status-followup rounded-t-sm chart-bar" style="height: 15%"></div>
+    <div class="absolute -bottom-6 w-full text-center text-[10px] text-on-surface-variant">Sat</div>
+    </div>
+    <div class="flex-1 flex items-end gap-1 h-full relative">
+    <div class="flex-1 bg-primary rounded-t-sm chart-bar" style="height: 25%"></div>
+    <div class="flex-1 bg-status-won rounded-t-sm chart-bar" style="height: 15%"></div>
+    <div class="flex-1 bg-status-followup rounded-t-sm chart-bar" style="height: 10%"></div>
+    <div class="absolute -bottom-6 w-full text-center text-[10px] text-on-surface-variant">Sun</div>
+    </div>
+    </div>
+    <div class="mt-8 border-t border-border-subtle pt-4 flex justify-end">
+    <button class="text-primary font-label-md text-label-md flex items-center gap-1 hover:underline">
+                                     View Detailed Analytics
+                                     <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+    </button>
+    </div>
+    </div>
+    </div>
+    </div>
+    <!-- 6. Bottom columns: Upcoming, Recent Activity, Lead Status -->
+    <div class="grid grid-cols-1 gap-gutter lg:grid-cols-3">
+    <div class="bg-surface-container-lowest border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col">
+    <div class="flex items-center justify-between mb-6">
+    <h3 class="font-headline-sm text-headline-sm">Upcoming Follow-ups</h3>
+    <button class="text-primary text-label-md font-label-md hover:underline">Schedule</button>
+    </div>
+    <div class="space-y-4">
+    <div class="flex items-center justify-between p-3 bg-surface-container-low rounded-lg">
+    <div class="flex flex-col">
+    <span class="text-body-md font-bold">Global Logistics Ltd</span>
+    <span class="text-body-sm text-on-surface-variant">10:30 AM Today</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full">
+    <span class="material-symbols-outlined text-[16px]">call</span>
+    <span class="text-label-md">Call</span>
+    </div>
+    </div>
+    <div class="flex items-center justify-between p-3 border border-border-subtle rounded-lg">
+    <div class="flex flex-col">
+    <span class="text-body-md font-bold">Apex Freight</span>
+    <span class="text-body-sm text-on-surface-variant">02:00 PM Today</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-1 bg-status-contacted/10 text-status-contacted rounded-full">
+    <span class="material-symbols-outlined text-[16px]">groups</span>
+    <span class="text-label-md">Meeting</span>
+    </div>
+    </div>
+    <div class="flex items-center justify-between p-3 border border-border-subtle rounded-lg">
+    <div class="flex flex-col">
+    <span class="text-body-md font-bold">Swift Trans</span>
+    <span class="text-body-sm text-on-surface-variant">09:00 AM Tomorrow</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-1 bg-status-new/10 text-status-new rounded-full">
+    <span class="material-symbols-outlined text-[16px]">mail</span>
+    <span class="text-label-md">Email</span>
+    </div>
+    </div>
+    </div>
+    </div>
+    <div class="bg-surface-container-lowest border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col">
+    <div class="flex items-center justify-between mb-6">
+    <h3 class="font-headline-sm text-headline-sm">Recent Activity</h3>
+    <button class="text-primary text-label-md font-label-md hover:underline">View All</button>
+    </div>
+    <div class="flex-1 space-y-6 relative timeline-line">
+    <div class="relative pl-8 flex items-start gap-3">
+    <div class="absolute left-0 w-6 h-6 rounded-full bg-status-won flex items-center justify-center z-10">
+    <span class="material-symbols-outlined text-white text-[14px]">check_circle</span>
+    </div>
+    <div class="flex-1">
+    <p class="text-body-md font-body-md"><span class="font-bold">Visited ABC Corp</span> - Warehouse Deal</p>
+    <p class="text-body-sm font-body-sm text-on-surface-variant">2 hours ago</p>
+    </div>
+    </div>
+    <div class="relative pl-8 flex items-start gap-3">
+    <div class="absolute left-0 w-6 h-6 rounded-full bg-status-new flex items-center justify-center z-10">
+    <span class="material-symbols-outlined text-white text-[14px]">person_add</span>
+    </div>
+    <div class="flex-1">
+    <p class="text-body-md font-body-md"><span class="font-bold">Added new lead:</span> John Doe</p>
+    <p class="text-body-sm font-body-sm text-on-surface-variant">4 hours ago</p>
+    </div>
+    </div>
+    <div class="relative pl-8 flex items-start gap-3">
+    <div class="absolute left-0 w-6 h-6 rounded-full bg-status-followup flex items-center justify-center z-10">
+    <span class="material-symbols-outlined text-white text-[14px]">call</span>
+    </div>
+    <div class="flex-1">
+    <p class="text-body-md font-body-md"><span class="font-bold">Follow-up Call</span> with Swift Trans</p>
+    <p class="text-body-sm font-body-sm text-on-surface-variant">Today, 11:30 AM</p>
+    </div>
+    </div>
+    </div>
+    </div>
+    <div class="bg-surface-container-lowest border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col">
+    <h3 class="font-headline-sm text-headline-sm mb-6">Lead Status Distribution</h3>
+    <div class="flex-1 flex flex-col justify-center gap-4">
+    <div class="space-y-2">
+    <div class="flex items-center justify-between text-label-md font-label-md">
+    <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-status-new"></span> New</span>
+    <span class="">450 (36%)</span>
+    </div>
+    <div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
+    <div class="bg-status-new h-full" style="width: 36%"></div>
+    </div>
+    </div>
+    <div class="space-y-2">
+    <div class="flex items-center justify-between text-label-md font-label-md">
+    <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-status-contacted"></span> Contacted</span>
+    <span class="">320 (26%)</span>
+    </div>
+    <div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
+    <div class="bg-status-contacted h-full" style="width: 26%"></div>
+    </div>
+    </div>
+    <div class="space-y-2">
+    <div class="flex items-center justify-between text-label-md font-label-md">
+    <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-status-won"></span> Won</span>
+    <span class="">280 (23%)</span>
+    </div>
+    <div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
+    <div class="bg-status-won h-full" style="width: 23%"></div>
+    </div>
+    </div>
+    </div>
+    </div>
+    </div>
+    </div>
+    <!-- Footer Decoration -->
+    <footer class="mt-auto p-gutter border-t border-border-subtle bg-surface-container-low flex items-center justify-between text-on-surface-variant">
+    <p class="text-body-sm font-body-sm">© 2024 Logistics Pro Management System. All rights reserved.</p>
+    <div class="flex items-center gap-4 text-body-sm">
+    <a class="hover:text-primary" href="#">System Status</a>
+    <a class="hover:text-primary" href="#">Help Center</a>
+    <a class="hover:text-primary" href="#">Privacy Policy</a>
+    </div>
+    </footer>
+    </main>
+    <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                console.log('Logistics Dashboard Initialized');
+                
+                // Hover effect for sidebar future modules
+                const futureLinks = document.querySelectorAll('.sidebar-future');
+                futureLinks.forEach(link => {
+                    link.addEventListener('mouseenter', () => {
+                        const tooltip = link.querySelector('div');
+                        if(tooltip) tooltip.classList.remove('opacity-0');
+                        if(tooltip) tooltip.classList.add('opacity-100');
+                    });
+                    link.addEventListener('mouseleave', () => {
+                        const tooltip = link.querySelector('div');
+                        if(tooltip) tooltip.classList.add('opacity-0');
+                        if(tooltip) tooltip.classList.remove('opacity-100');
+                    });
+                });
+            });
+        </script>
+    
+    
+    </body></html>

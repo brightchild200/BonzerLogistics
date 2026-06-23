@@ -36,6 +36,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { COLORS } from '@/lib/types';
 import { resolveSalespersonSession } from '@/lib/salesperson-session';
+import { hasRole } from '@/lib/permissions';
 import { StatusBadge } from '@/components/Badge';
 
 // Mode mapping (from mode_master table)
@@ -72,6 +73,7 @@ type EnquiryRow = {
   created_at: string;
   updated_at: string;
   mode_name?: string;
+  salesperson_name?: string | null;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -129,19 +131,20 @@ export default function EnquiriesScreen() {
         hasAppUser: !!session.appUser,
       });
 
-      if (!session.salesperson && session.appUser?.role !== 'admin') {
+      if (!session.salesperson && !hasRole(session.roles, 'admin')) {
         setSessionError('No salesperson profile is linked to this account yet.');
         setEnquiries([]);
         return;
       }
 
       setSessionError('');
+      const canSeeTeamData = hasRole(session.roles, 'admin') || hasRole(session.roles, 'sales_manager');
 
       // Build query
       let query = supabase.from('enquiries').select('*');
 
       // For non-admin users, filter by sales_person_id
-      if (session.appUser?.role !== 'admin') {
+      if (!canSeeTeamData) {
         query = query.eq('sales_person_id', session.salesperson?.id);
       }
 
@@ -162,10 +165,21 @@ export default function EnquiriesScreen() {
         return;
       }
 
+      const salespersonIds = Array.from(new Set((data || []).map((row) => row.sales_person_id).filter((id): id is number => typeof id === 'number')));
+      let salespersonMap: Record<number, string> = {};
+      if (salespersonIds.length > 0) {
+        const { data: salespersonRows } = await supabase
+          .from('sales_persons')
+          .select('id, name')
+          .in('id', salespersonIds);
+        salespersonMap = Object.fromEntries((salespersonRows || []).map((row) => [row.id, row.name]));
+      }
+
       // Map mode_id to mode_name
       const enquiriesWithMode = (data || []).map(enq => ({
         ...enq,
         mode_name: enq.mode_id ? MODE_MAP[enq.mode_id] || 'Unknown' : 'N/A',
+        salesperson_name: enq.sales_person_id ? (salespersonMap[enq.sales_person_id] || null) : null,
       }));
 
       setEnquiries(enquiriesWithMode);
@@ -513,6 +527,7 @@ Gross Weight: ${enquiry.gross_weight || '0'} ${enquiry.gross_weight_unit || ''}
               <Text style={[styles.tableHeaderCell, styles.colDate]}>Date</Text>
               <Text style={[styles.tableHeaderCell, styles.colEnqNo]}>Enquiry No.</Text>
               <Text style={[styles.tableHeaderCell, styles.colCustomer]}>Customer</Text>
+              <Text style={[styles.tableHeaderCell, styles.colSalesperson]}>Salesperson</Text>
               <Text style={[styles.tableHeaderCell, styles.colMode]}>Mode</Text>
               <Text style={[styles.tableHeaderCell, styles.colStatus]}>Status</Text>
               <Text style={[styles.tableHeaderCell, styles.colJobId]}>Job ID</Text>
@@ -532,6 +547,9 @@ Gross Weight: ${enquiry.gross_weight || '0'} ${enquiry.gross_weight_unit || ''}
                 </Text>
                 <Text style={[styles.tableCell, styles.colCustomer]} numberOfLines={1}>
                   {enquiry.customer_name || 'Unknown'}
+                </Text>
+                <Text style={[styles.tableCell, styles.colSalesperson]} numberOfLines={1}>
+                  {enquiry.salesperson_name || 'Unassigned'}
                 </Text>
                 <Text style={[styles.tableCell, styles.colMode]}>
                   {enquiry.mode_name || 'N/A'}
@@ -844,6 +862,7 @@ const styles = StyleSheet.create({
   colDate: { width: 70, flexShrink: 0 },
   colEnqNo: { width: 90, flexShrink: 0 },
   colCustomer: { flex: 1, minWidth: 100 },
+  colSalesperson: { width: 120, flexShrink: 0 },
   colMode: { width: 80, flexShrink: 0 },
   colStatus: { width: 80, flexShrink: 0 },
   colJobId: { width: 70, flexShrink: 0 },

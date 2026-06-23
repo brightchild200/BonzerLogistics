@@ -11,12 +11,12 @@ import { StatusBadge } from '@/components/Badge';
 export default function ProfileScreen() {
   const [appUser, setAppUser] = useState<UserRow | null>(null);
   const [salesperson, setSalesperson] = useState<SalesPersonRow | null>(null);
+  const [roles, setRoles] = useState<string[]>([]);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     full_name: '',
     phone: '',
     username: '',
-    role: '',
     mobile: '',
     designation: '',
     department: '',
@@ -36,12 +36,12 @@ export default function ProfileScreen() {
     setUserEmail(auth.user?.email || '');
     setAppUser(session.appUser);
     setSalesperson(session.salesperson);
+    setRoles(session.roles);
 
     setForm({
       full_name: session.appUser?.full_name || session.salesperson?.name || '',
       phone: session.appUser?.phone || '',
       username: session.appUser?.username || '',
-      role: session.appUser?.role || '',
       mobile: session.salesperson?.mobile || '',
       designation: session.salesperson?.designation || '',
       department: session.salesperson?.department || '',
@@ -83,7 +83,6 @@ export default function ProfileScreen() {
         full_name: form.full_name.trim(),
         phone: form.phone.trim() || null,
         username: form.username.trim() || null,
-        role: form.role.trim() || session.appUser.role,
       }).eq('id', session.appUser.id);
     }
 
@@ -122,6 +121,15 @@ export default function ProfileScreen() {
     .slice(0, 2)
     .join('')
     .toUpperCase();
+
+  function titleCaseRole(r: string) {
+    return r
+      .replace(/_/g, ' ')
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
 
   return (
     <View style={styles.screen}>
@@ -179,7 +187,6 @@ export default function ProfileScreen() {
                 { key: 'full_name', label: 'Full Name', icon: <User size={15} color={COLORS.textMuted} />, placeholder: 'John Smith' },
                 { key: 'phone', label: 'Phone', icon: <Phone size={15} color={COLORS.textMuted} />, placeholder: '+1 555 000' },
                 { key: 'username', label: 'Username', icon: <BadgeCheck size={15} color={COLORS.textMuted} />, placeholder: 'johndoe' },
-                { key: 'role', label: 'Role', icon: <Briefcase size={15} color={COLORS.textMuted} />, placeholder: 'sales' },
                 { key: 'mobile', label: 'Mobile', icon: <Phone size={15} color={COLORS.textMuted} />, placeholder: '+1 555 000' },
                 { key: 'designation', label: 'Designation', icon: <Building2 size={15} color={COLORS.textMuted} />, placeholder: 'Sales Executive' },
                 { key: 'department', label: 'Department', icon: <Building2 size={15} color={COLORS.textMuted} />, placeholder: 'Sales' },
@@ -210,7 +217,7 @@ export default function ProfileScreen() {
                 { icon: <Mail size={15} color={COLORS.textMuted} />, label: 'Auth Email', value: userEmail || '—' },
                 { icon: <Phone size={15} color={COLORS.textMuted} />, label: 'Phone', value: appUser?.phone || '—' },
                 { icon: <BadgeCheck size={15} color={COLORS.textMuted} />, label: 'Username', value: appUser?.username || '—' },
-                { icon: <Briefcase size={15} color={COLORS.textMuted} />, label: 'Role', value: appUser?.role || '—' },
+                { icon: <Briefcase size={15} color={COLORS.textMuted} />, label: 'Roles', value: roles.map(titleCaseRole).join(', ') || '—' },
                 { icon: <Phone size={15} color={COLORS.textMuted} />, label: 'Mobile', value: salesperson?.mobile || '—' },
                 { icon: <Building2 size={15} color={COLORS.textMuted} />, label: 'Designation', value: salesperson?.designation || '—' },
                 { icon: <Building2 size={15} color={COLORS.textMuted} />, label: 'Department', value: salesperson?.department || '—' },

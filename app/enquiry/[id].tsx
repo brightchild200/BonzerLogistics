@@ -27,6 +27,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { COLORS } from '@/lib/types';
 import { resolveSalespersonSession } from '@/lib/salesperson-session';
+import { hasRole } from '@/lib/permissions';
 import { StatusBadge } from '@/components/Badge';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -116,7 +117,7 @@ export default function EnquiryDetailScreen() {
           hasAppUser: !!session.appUser,
         });
 
-        if (!session.salesperson && session.appUser?.role !== 'admin') {
+        if (!session.salesperson && !hasRole(session.roles, 'admin')) {
           setSessionError('No salesperson profile is linked to this account yet.');
           setLoading(false);
           return;
@@ -145,7 +146,7 @@ export default function EnquiryDetailScreen() {
         }
 
         // For non-admin users, verify they have access to this enquiry
-        if (session.appUser?.role !== 'admin' && data.sales_person_id !== session.salesperson?.id) {
+        if (!hasRole(session.roles, 'admin') && data.sales_person_id !== session.salesperson?.id) {
           setError('You do not have permission to view this enquiry');
           setLoading(false);
           return;
