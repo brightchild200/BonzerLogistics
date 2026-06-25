@@ -1,29 +1,32 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, ClipboardPlus, Send, Loader } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  TextInput,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { ArrowLeft, Save, ChevronDown } from 'lucide-react-native';
 
 import { supabase } from '@/lib/supabase';
 import { COLORS } from '@/lib/types';
 import { resolveSalespersonSession } from '@/lib/salesperson-session';
-import { hasRole } from '@/lib/permissions';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type FormState = {
-  enquiry_no: string;
-  company_id: number | null;
   enq_date: string;
-  customer_id: number | null;
   customer_name: string;
   customer_address: string;
   customer_gst: string;
-  shipper_id: number | null;
   shipper: string;
-  cnee_id: number | null;
   cnee: string;
-  sales_person_id: number | null;
-  seals_person: string;
-  mode_id: number | null;
+  mode_id: string;
   pol_country: string;
   pol: string;
   pod_country: string;
@@ -34,16 +37,48 @@ type FormState = {
   gross_weight: string;
   gross_weight_unit: string;
   cbm: string;
-  usd_exchange_rate: string;
-  eur_exchange_rate: string;
-  gbp_exchange_rate: string;
   status: string;
-  cancel_remark: string;
-  job_id: number | null;
 };
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.label}>{children}</Text>;
+const INITIAL_FORM: FormState = {
+  enq_date: new Date().toISOString().split('T')[0],
+  customer_name: '',
+  customer_address: '',
+  customer_gst: '',
+  shipper: '',
+  cnee: '',
+  mode_id: '',
+  pol_country: '',
+  pol: '',
+  pod_country: '',
+  pod: '',
+  commodity: '',
+  packages: '',
+  packages_unit: 'CTN',
+  gross_weight: '',
+  gross_weight_unit: 'KGS',
+  cbm: '',
+  status: 'Pending',
+};
+
+const MODE_OPTIONS = [
+  { id: 1, label: 'Sea Export' },
+  { id: 2, label: 'Sea Import' },
+  { id: 3, label: 'Air Export' },
+  { id: 4, label: 'Air Import' },
+];
+
+const STATUS_OPTIONS = ['Pending', 'Confirmed', 'Cancelled', 'Completed'];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function FieldLabel({ children, required }: { children: string; required?: boolean }) {
+  return (
+    <Text style={styles.fieldLabel}>
+      {children}
+      {required && <Text style={styles.required}> *</Text>}
+    </Text>
+  );
 }
 
 function Input({
@@ -51,176 +86,180 @@ function Input({
   onChangeText,
   placeholder,
   keyboardType,
+  multiline,
   editable = true,
 }: {
   value: string;
-  onChangeText: (t: string) => void;
+  onChangeText: (v: string) => void;
   placeholder?: string;
-  keyboardType?: 'default' | 'numeric';
+  keyboardType?: any;
+  multiline?: boolean;
   editable?: boolean;
 }) {
   return (
     <TextInput
-      style={[styles.input, !editable && styles.inputDisabled]}
+      style={[styles.input, multiline && styles.inputMulti, !editable && styles.inputDisabled]}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
       placeholderTextColor={COLORS.textLight}
       keyboardType={keyboardType}
+      multiline={multiline}
+      numberOfLines={multiline ? 3 : 1}
       editable={editable}
     />
   );
 }
 
-export default function EnquiryScreen() {
-  const router = useRouter();
-
-  const initialState: FormState = useMemo(
-    () => ({
-      enquiry_no: '',
-      company_id: 6,
-      enq_date: new Date().toISOString().split('T')[0],
-      customer_id: null,
-      customer_name: '',
-      customer_address: '',
-      customer_gst: '',
-      shipper_id: null,
-      shipper: '',
-      cnee_id: null,
-      cnee: '',
-      sales_person_id: null,
-      seals_person: '',
-      mode_id: null,
-      pol_country: '',
-      pol: '',
-      pod_country: '',
-      pod: '',
-      commodity: '',
-      packages: '',
-      packages_unit: '',
-      gross_weight: '',
-      gross_weight_unit: '',
-      cbm: '',
-      usd_exchange_rate: '0.00',
-      eur_exchange_rate: '0.00',
-      gbp_exchange_rate: '0.00',
-      status: 'Pending',
-      cancel_remark: '',
-      job_id: null,
-    }),
-    [],
+function SelectButtons({
+  options,
+  value,
+  onChange,
+}: {
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <View style={styles.selectRow}>
+      {options.map((opt) => (
+        <TouchableOpacity
+          key={opt}
+          style={[styles.selectBtn, value === opt && styles.selectBtnActive]}
+          onPress={() => onChange(opt)}
+        >
+          <Text style={[styles.selectBtnText, value === opt && styles.selectBtnTextActive]}>
+            {opt}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
   );
+}
 
-  const [form, setForm] = useState<FormState>(initialState);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string>('');
-  const [loadingEnquiryNo, setLoadingEnquiryNo] = useState(true);
+// ─── Screen ───────────────────────────────────────────────────────────────────
 
-  // Fetch the next enquiry number on component mount
+export default function EnquiryFormScreen() {
+  const router = useRouter();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const isEdit = !!id;
+
+  const [form, setForm] = useState<FormState>(INITIAL_FORM);
+  const [enquiryNo, setEnquiryNo] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const set = (key: keyof FormState) => (val: string) =>
+    setForm((f) => ({ ...f, [key]: val }));
+
+  // ── Load existing enquiry for edit ────────────────────────────────────────
+
   useEffect(() => {
-    async function fetchNextEnquiryNo() {
-      try {
-        const { data: auth } = await supabase.auth.getUser();
-        const session = await resolveSalespersonSession(auth.user?.email ?? null);
-
-        if (!session.salesperson && !hasRole(session.roles, 'admin')) {
-          // Non-admin without salesperson - skip auto-generation
-          setLoadingEnquiryNo(false);
-          return;
-        }
-
-        const salespersonId = session.salesperson?.id;
-
-        if (!salespersonId) {
-          setLoadingEnquiryNo(false);
-          return;
-        }
-
-        // Fetch next enquiry number from backend
-        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
-        const response = await fetch(
-          `${apiUrl}/api/enquiries/next-enquiry-no?sales_person_id=${salespersonId}`
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          setForm(prev => ({ ...prev, enquiry_no: data.enquiry_no }));
-        }
-      } catch (e) {
-        console.log('[enquiry] Failed to fetch enquiry no:', e);
-      } finally {
-        setLoadingEnquiryNo(false);
-      }
+    if (isEdit) {
+      loadEnquiry();
+    } else {
+      fetchNextEnquiryNo();
     }
+  }, [id]);
 
-    fetchNextEnquiryNo();
-  }, []);
-
-  async function handleSubmit() {
-    console.log('[enquiry] Starting form submission');
-    setError('');
-    setSubmitting(true);
-
+  async function fetchNextEnquiryNo() {
     try {
-      // Validate required fields
-      if (!form.customer_name.trim()) {
-        throw new Error('Customer name is required');
+      const { data } = await supabase
+        .from('enquiries')
+        .select('enquiry_no')
+        .not('enquiry_no', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let next = 1;
+      if (data?.enquiry_no) {
+        const match = data.enquiry_no.match(/ENQ-(\d+)/);
+        if (match) next = parseInt(match[1], 10) + 1;
       }
+      setEnquiryNo(`ENQ-${next.toString().padStart(6, '0')}`);
+    } catch {
+      setEnquiryNo('ENQ-000001');
+    }
+  }
 
-      if (!form.pol.trim()) {
-        throw new Error('POL (Port of Loading) is required');
-      }
+  async function loadEnquiry() {
+    setLoading(true);
+    try {
+      const { data, error: fetchErr } = await supabase
+        .from('enquiries')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
 
-      if (!form.pod.trim()) {
-        throw new Error('POD (Port of Destination) is required');
-      }
-
-      console.log('[enquiry] Form validation passed');
-
-      const { data: auth } = await supabase.auth.getUser();
-      console.log('[enquiry] Auth user retrieved:', auth.user?.email ?? null);
-
-      const session = await resolveSalespersonSession(auth.user?.email ?? null);
-      console.log('[enquiry] Session resolved:', {
-        roles: session.roles,
-        hasSalesperson: !!session.salesperson,
-        salespersonId: session.salesperson?.id ?? null,
-      });
-
-      // Admin users can create enquiries without a sales_persons mapping.
-      if (!session.appUser) {
-        const errorMsg = 'Unable to resolve user profile from `users` table.';
-        console.error('[enquiry] Error:', errorMsg);
-        setError(errorMsg);
+      if (fetchErr || !data) {
+        setError('Failed to load enquiry.');
+        setLoading(false);
         return;
       }
 
-      const isAdmin = hasRole(session.roles, 'admin');
-      if (!isAdmin && !session.salesperson) {
-        const errorMsg = 'No salesperson profile is linked to this account yet.';
-        console.error('[enquiry] Error:', errorMsg);
-        setError(errorMsg);
+      setEnquiryNo(data.enquiry_no || '');
+      setForm({
+        enq_date: data.enq_date?.split('T')[0] ?? new Date().toISOString().split('T')[0],
+        customer_name: data.customer_name ?? '',
+        customer_address: data.customer_address ?? '',
+        customer_gst: data.customer_gst ?? '',
+        shipper: data.shipper ?? '',
+        cnee: data.cnee ?? '',
+        mode_id: data.mode_id?.toString() ?? '',
+        pol_country: data.pol_country ?? '',
+        pol: data.pol ?? '',
+        pod_country: data.pod_country ?? '',
+        pod: data.pod ?? '',
+        commodity: data.commodity ?? '',
+        packages: data.packages ?? '',
+        packages_unit: data.packages_unit ?? 'CTN',
+        gross_weight: data.gross_weight ?? '',
+        gross_weight_unit: data.gross_weight_unit ?? 'KGS',
+        cbm: data.cbm ?? '',
+        status: data.status ?? 'Pending',
+      });
+    } catch {
+      setError('Failed to load enquiry.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+
+  async function handleSave() {
+    if (!form.customer_name.trim()) {
+      setError('Customer name is required.');
+      return;
+    }
+    if (!form.mode_id) {
+      setError('Please select a mode.');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const session = await resolveSalespersonSession(auth.user?.email ?? null);
+
+      if (!session.salesperson) {
+        setError('No salesperson profile linked to this account.');
+        setSaving(false);
         return;
       }
 
       const payload = {
-        enquiry_no: form.enquiry_no.trim() || null,
-        company_id: form.company_id ?? 6,
-        enq_date: form.enq_date ? form.enq_date : null,
-        customer_id: form.customer_id,
-        customer_name: form.customer_name.trim() || null,
+        enq_date: form.enq_date || new Date().toISOString().split('T')[0],
+        customer_name: form.customer_name.trim(),
         customer_address: form.customer_address.trim() || null,
         customer_gst: form.customer_gst.trim() || null,
-        shipper_id: form.shipper_id,
         shipper: form.shipper.trim() || null,
-        cnee_id: form.cnee_id,
         cnee: form.cnee.trim() || null,
-        // RLS note: sales_person_policy compares (sales_person_id)::text = CURRENT_USER.
-        // So for non-admin users, we must set sales_person_id to the CURRENT_USER value.
-        // For now we keep mapped id; if your CURRENT_USER != salesperson.id, update backend policy.
-        sales_person_id: isAdmin ? (form.sales_person_id ?? null) : (form.sales_person_id ?? session.salesperson?.id ?? null),
-        seals_person: form.seals_person.trim() || null,
-        mode_id: form.mode_id,
+        mode_id: form.mode_id ? Number(form.mode_id) : null,
         pol_country: form.pol_country.trim() || null,
         pol: form.pol.trim() || null,
         pod_country: form.pod_country.trim() || null,
@@ -231,252 +270,322 @@ export default function EnquiryScreen() {
         gross_weight: form.gross_weight.trim() || null,
         gross_weight_unit: form.gross_weight_unit.trim() || null,
         cbm: form.cbm.trim() || null,
-        usd_exchange_rate: Number(form.usd_exchange_rate) || 0,
-        eur_exchange_rate: Number(form.eur_exchange_rate) || 0,
-        gbp_exchange_rate: Number(form.gbp_exchange_rate) || 0,
-        status: form.status || 'Pending',
-        cancel_remark: form.cancel_remark.trim() || null,
-        job_id: form.job_id,
+        status: form.status,
+        updated_at: new Date().toISOString(),
       };
 
-      console.log('[enquiry] session used for insert', {
-        roles: session.roles,
-        hasSalesperson: !!session.salesperson,
-        salespersonId: session.salesperson?.id ?? null,
-      });
-       console.log(payload);
-      console.log('[enquiry] insert payload', payload);
+      if (isEdit) {
+        const { error: updateErr } = await supabase
+          .from('enquiries')
+          .update(payload)
+          .eq('id', id);
 
-      // NOTE: schema.ts currently doesn't include `enquiries`, so we cast to `any` to avoid TS blocking.
-      const { error: insertError, data } = await (supabase as any)
-        .from('enquiries')
-        .insert(payload)
-        .select()
-        .maybeSingle();
+        if (updateErr) {
+          setError('Failed to update enquiry: ' + updateErr.message);
+          setSaving(false);
+          return;
+        }
+        Alert.alert('Success', 'Enquiry updated successfully.', [
+          { text: 'OK', onPress: () => router.back() },
+        ]);
+      } else {
+        const { error: insertErr } = await supabase.from('enquiries').insert({
+          ...payload,
+          enquiry_no: enquiryNo,
+          sales_person_id: session.salesperson.id,
+        });
 
-      console.log('[enquiry] insert result', { hasError: !!insertError, insertError: insertError ?? null, inserted: data ?? null });
-
-      if (insertError) {
-        console.error('[enquiry] Database insert error:', insertError);
-        setError(`Database error: ${insertError.message}`);
-        return;
+        if (insertErr) {
+          setError('Failed to create enquiry: ' + insertErr.message);
+          setSaving(false);
+          return;
+        }
+        Alert.alert('Success', 'Enquiry created successfully.', [
+          { text: 'OK', onPress: () => router.back() },
+        ]);
       }
-
-      console.log('[enquiry] Successfully inserted data:', data);
-
-      // reset form after successful insert
-      setForm(initialState);
-      router.back();
     } catch (e: any) {
-      console.error('[enquiry] submit exception', e);
-      const errorMsg = e?.message ?? 'Failed to create enquiry.';
-      setError(errorMsg);
-      console.error('[enquiry] Error message:', errorMsg);
+      setError(e?.message ?? 'An unexpected error occurred.');
     } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
   }
 
   return (
     <View style={styles.screen}>
-      <View style={styles.topbar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <ArrowLeft size={18} color={COLORS.text} />
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <ArrowLeft size={20} color={COLORS.text} />
         </TouchableOpacity>
-        <View style={styles.topbarCopy}>
-          <Text style={styles.title}>Enquiry</Text>
-          <Text style={styles.subtitle}>New enquiry details</Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>{isEdit ? 'Edit Enquiry' : 'New Enquiry'}</Text>
+          {enquiryNo ? (
+            <Text style={styles.headerSub}>{enquiryNo}</Text>
+          ) : null}
         </View>
+        <TouchableOpacity
+          style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+          onPress={handleSave}
+          disabled={saving}
+        >
+          <Save size={16} color={COLORS.white} />
+          <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save'}</Text>
+        </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.card}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionIconWrap}>
-              <ClipboardPlus size={18} color={COLORS.primary} />
-            </View>
-            <Text style={styles.sectionTitle}>Enquiry Information</Text>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        {/* Error */}
+        {error ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{error}</Text>
           </View>
+        ) : null}
 
-          <View style={styles.grid2}>
-            <View style={styles.field}>
-              <FieldLabel>Enquiry No {loadingEnquiryNo && '(Loading...)'}</FieldLabel>
-              {loadingEnquiryNo ? (
-                <View style={[styles.input, styles.inputDisabled, { justifyContent: 'center', alignItems: 'center' }]}>
-                  <ActivityIndicator size="small" color={COLORS.primary} />
-                </View>
-              ) : (
-                <Input
-                  value={form.enquiry_no}
-                  onChangeText={(t) => setForm((p) => ({ ...p, enquiry_no: t }))}
-                  placeholder="Auto-generated"
-                  editable={false}
-                />
-              )}
-            </View>
+        {/* Enquiry Info */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Enquiry Information</Text>
+          <View style={styles.card}>
             <View style={styles.field}>
               <FieldLabel>Enquiry Date</FieldLabel>
-              <Input value={form.enq_date} onChangeText={(t) => setForm((p) => ({ ...p, enq_date: t }))} placeholder="YYYY-MM-DD" />
+              <Input value={form.enq_date} onChangeText={set('enq_date')} placeholder="YYYY-MM-DD" />
             </View>
-          </View>
-
-          <View style={styles.grid2}>
             <View style={styles.field}>
-              <FieldLabel>Customer Name *</FieldLabel>
-              <Input value={form.customer_name} onChangeText={(t) => setForm((p) => ({ ...p, customer_name: t }))} placeholder="Customer" />
+              <FieldLabel required>Customer Name</FieldLabel>
+              <Input value={form.customer_name} onChangeText={set('customer_name')} placeholder="Customer or company name" />
+            </View>
+            <View style={styles.field}>
+              <FieldLabel>Customer Address</FieldLabel>
+              <Input value={form.customer_address} onChangeText={set('customer_address')} placeholder="Address" multiline />
             </View>
             <View style={styles.field}>
               <FieldLabel>Customer GST</FieldLabel>
-              <Input value={form.customer_gst} onChangeText={(t) => setForm((p) => ({ ...p, customer_gst: t }))} placeholder="GSTIN (optional)" />
+              <Input value={form.customer_gst} onChangeText={set('customer_gst')} placeholder="GSTIN" />
+            </View>
+            <View style={styles.field}>
+              <FieldLabel>Status</FieldLabel>
+              <SelectButtons options={STATUS_OPTIONS} value={form.status} onChange={set('status')} />
             </View>
           </View>
+        </View>
 
-          <View style={styles.field}>
-            <FieldLabel>Customer Address</FieldLabel>
-            <TextInput
-              style={styles.inputMultiline}
-              value={form.customer_address}
-              onChangeText={(t) => setForm((p) => ({ ...p, customer_address: t }))}
-              placeholder="Address"
-              placeholderTextColor={COLORS.textLight}
-              multiline
-              numberOfLines={4}
-            />
+        {/* Shipment Details */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Shipment Details</Text>
+          <View style={styles.card}>
+            <View style={styles.field}>
+              <FieldLabel required>Mode</FieldLabel>
+              <SelectButtons
+                options={MODE_OPTIONS.map((m) => m.label)}
+                value={MODE_OPTIONS.find((m) => m.id.toString() === form.mode_id)?.label ?? ''}
+                onChange={(label) => {
+                  const found = MODE_OPTIONS.find((m) => m.label === label);
+                  if (found) set('mode_id')(found.id.toString());
+                }}
+              />
+            </View>
+            <View style={styles.grid2}>
+              <View style={[styles.field, { flex: 1 }]}>
+                <FieldLabel>POL Country</FieldLabel>
+                <Input value={form.pol_country} onChangeText={set('pol_country')} placeholder="Country" />
+              </View>
+              <View style={[styles.field, { flex: 1 }]}>
+                <FieldLabel>Port of Loading</FieldLabel>
+                <Input value={form.pol} onChangeText={set('pol')} placeholder="POL" />
+              </View>
+            </View>
+            <View style={styles.grid2}>
+              <View style={[styles.field, { flex: 1 }]}>
+                <FieldLabel>POD Country</FieldLabel>
+                <Input value={form.pod_country} onChangeText={set('pod_country')} placeholder="Country" />
+              </View>
+              <View style={[styles.field, { flex: 1 }]}>
+                <FieldLabel>Port of Destination</FieldLabel>
+                <Input value={form.pod} onChangeText={set('pod')} placeholder="POD" />
+              </View>
+            </View>
           </View>
+        </View>
 
-          <View style={styles.divider} />
-
-          <View style={styles.grid2}>
+        {/* Shipper & Consignee */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Shipper & Consignee</Text>
+          <View style={styles.card}>
             <View style={styles.field}>
               <FieldLabel>Shipper</FieldLabel>
-              <Input value={form.shipper} onChangeText={(t) => setForm((p) => ({ ...p, shipper: t }))} placeholder="Shipper name" />
+              <Input value={form.shipper} onChangeText={set('shipper')} placeholder="Shipper name" />
             </View>
             <View style={styles.field}>
-              <FieldLabel>Cnee</FieldLabel>
-              <Input value={form.cnee} onChangeText={(t) => setForm((p) => ({ ...p, cnee: t }))} placeholder="Consignee name" />
-            </View>
-          </View>
-
-          <View style={styles.grid2}>
-            <View style={styles.field}>
-              <FieldLabel>POL Country</FieldLabel>
-              <Input value={form.pol_country} onChangeText={(t) => setForm((p) => ({ ...p, pol_country: t }))} placeholder="Country" />
-            </View>
-            <View style={styles.field}>
-              <FieldLabel>POL *</FieldLabel>
-              <Input value={form.pol} onChangeText={(t) => setForm((p) => ({ ...p, pol: t }))} placeholder="Port / location" />
+              <FieldLabel>Consignee</FieldLabel>
+              <Input value={form.cnee} onChangeText={set('cnee')} placeholder="Consignee name" />
             </View>
           </View>
+        </View>
 
-          <View style={styles.grid2}>
+        {/* Cargo Details */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Cargo Details</Text>
+          <View style={styles.card}>
             <View style={styles.field}>
-              <FieldLabel>POD Country</FieldLabel>
-              <Input value={form.pod_country} onChangeText={(t) => setForm((p) => ({ ...p, pod_country: t }))} placeholder="Country" />
+              <FieldLabel>Commodity</FieldLabel>
+              <Input value={form.commodity} onChangeText={set('commodity')} placeholder="Describe the cargo" />
             </View>
-            <View style={styles.field}>
-              <FieldLabel>POD *</FieldLabel>
-              <Input value={form.pod} onChangeText={(t) => setForm((p) => ({ ...p, pod: t }))} placeholder="Port / location" />
+            <View style={styles.grid2}>
+              <View style={[styles.field, { flex: 2 }]}>
+                <FieldLabel>Packages</FieldLabel>
+                <Input value={form.packages} onChangeText={set('packages')} placeholder="0" keyboardType="numeric" />
+              </View>
+              <View style={[styles.field, { flex: 1 }]}>
+                <FieldLabel>Unit</FieldLabel>
+                <Input value={form.packages_unit} onChangeText={set('packages_unit')} placeholder="CTN" />
+              </View>
             </View>
-          </View>
-
-          <View style={styles.field}>
-            <FieldLabel>Commodity</FieldLabel>
-            <Input value={form.commodity} onChangeText={(t) => setForm((p) => ({ ...p, commodity: t }))} placeholder="Commodity" />
-          </View>
-
-          <View style={styles.grid3}>
-            <View style={styles.field}>
-              <FieldLabel>Packages</FieldLabel>
-              <Input value={form.packages} onChangeText={(t) => setForm((p) => ({ ...p, packages: t }))} placeholder="e.g. 100" keyboardType="numeric" />
-            </View>
-            <View style={styles.field}>
-              <FieldLabel>Unit</FieldLabel>
-              <Input value={form.packages_unit} onChangeText={(t) => setForm((p) => ({ ...p, packages_unit: t }))} placeholder="CTN" />
+            <View style={styles.grid2}>
+              <View style={[styles.field, { flex: 2 }]}>
+                <FieldLabel>Gross Weight</FieldLabel>
+                <Input value={form.gross_weight} onChangeText={set('gross_weight')} placeholder="0" keyboardType="numeric" />
+              </View>
+              <View style={[styles.field, { flex: 1 }]}>
+                <FieldLabel>Unit</FieldLabel>
+                <Input value={form.gross_weight_unit} onChangeText={set('gross_weight_unit')} placeholder="KGS" />
+              </View>
             </View>
             <View style={styles.field}>
               <FieldLabel>CBM</FieldLabel>
-              <Input value={form.cbm} onChangeText={(t) => setForm((p) => ({ ...p, cbm: t }))} placeholder="m³" keyboardType="numeric" />
+              <Input value={form.cbm} onChangeText={set('cbm')} placeholder="0.00" keyboardType="numeric" />
             </View>
           </View>
-
-          <View style={styles.grid2}>
-            <View style={styles.field}>
-              <FieldLabel>Gross Weight</FieldLabel>
-              <Input value={form.gross_weight} onChangeText={(t) => setForm((p) => ({ ...p, gross_weight: t }))} placeholder="e.g. 1250" keyboardType="numeric" />
-            </View>
-            <View style={styles.field}>
-              <FieldLabel>Weight Unit</FieldLabel>
-              <Input value={form.gross_weight_unit} onChangeText={(t) => setForm((p) => ({ ...p, gross_weight_unit: t }))} placeholder="KGS" />
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.grid3}>
-            <View style={styles.field}>
-              <FieldLabel>USD Rate</FieldLabel>
-              <Input value={form.usd_exchange_rate} onChangeText={(t) => setForm((p) => ({ ...p, usd_exchange_rate: t }))} placeholder="0.00" keyboardType="numeric" />
-            </View>
-            <View style={styles.field}>
-              <FieldLabel>EUR Rate</FieldLabel>
-              <Input value={form.eur_exchange_rate} onChangeText={(t) => setForm((p) => ({ ...p, eur_exchange_rate: t }))} placeholder="0.00" keyboardType="numeric" />
-            </View>
-            <View style={styles.field}>
-              <FieldLabel>GBP Rate</FieldLabel>
-              <Input value={form.gbp_exchange_rate} onChangeText={(t) => setForm((p) => ({ ...p, gbp_exchange_rate: t }))} placeholder="0.00" keyboardType="numeric" />
-            </View>
-          </View>
-
-          {error ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>Error: {error}</Text>
-            </View>
-          ) : null}
-
-          <TouchableOpacity style={[styles.primaryBtn, submitting && styles.primaryBtnDisabled]} onPress={handleSubmit} disabled={submitting}>
-            {submitting ? <Text style={styles.primaryBtnText}>Saving...</Text> : <View style={styles.btnRow}><Send size={18} color={COLORS.white} /><Text style={styles.primaryBtnText}>Save Enquiry</Text></View>}
-          </TouchableOpacity>
         </View>
 
-        <View style={{ height: 20 }} />
+        {/* Save button at bottom */}
+        <TouchableOpacity
+          style={[styles.bottomSaveBtn, saving && styles.saveBtnDisabled]}
+          onPress={handleSave}
+          disabled={saving}
+        >
+          <Save size={18} color={COLORS.white} />
+          <Text style={styles.bottomSaveBtnText}>{saving ? 'Saving...' : isEdit ? 'Update Enquiry' : 'Create Enquiry'}</Text>
+        </TouchableOpacity>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
-  topbar: {
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: Platform.OS === 'web' ? 14 : 50,
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingTop: Platform.OS === 'web' ? 14 : 50,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.white,
-    gap: 10,
+    gap: 12,
   },
-  backBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: COLORS.gray50, alignItems: 'center', justifyContent: 'center' },
-  topbarCopy: { flex: 1 },
-  title: { fontSize: 22, fontWeight: '800', color: COLORS.text },
-  subtitle: { marginTop: 2, fontSize: 12, color: COLORS.textMuted },
-  content: { padding: 16 },
-  card: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 16, gap: 14 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  sectionIconWrap: { width: 34, height: 34, borderRadius: 12, backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { fontSize: 15, fontWeight: '800', color: COLORS.text },
-  label: { fontSize: 11, color: COLORS.textLight, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: '700', marginBottom: 6 },
-  input: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, height: 42, paddingHorizontal: 12, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.gray50 },
-  inputDisabled: { opacity: 0.6 },
-  inputMultiline: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.gray50, minHeight: 90 },
-  grid2: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  grid3: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  field: { flex: 1, minWidth: 160 },
-  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 2 },
-  errorBox: { backgroundColor: COLORS.dangerLight, borderLeftWidth: 3, borderLeftColor: COLORS.danger, borderRadius: 10, padding: 10 },
-  errorText: { color: COLORS.danger, fontSize: 13, fontWeight: '700' },
-  primaryBtn: { height: 52, borderRadius: 12, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
-  primaryBtnDisabled: { opacity: 0.7 },
-  primaryBtnText: { color: COLORS.white, fontSize: 16, fontWeight: '800' },
-  btnRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.gray50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerContent: { flex: 1 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text },
+  headerSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  saveBtnDisabled: { opacity: 0.6 },
+  saveBtnText: { fontSize: 14, fontWeight: '700', color: COLORS.white },
+
+  scroll: { flex: 1 },
+  content: { padding: 16, gap: 16 },
+
+  errorBox: {
+    backgroundColor: COLORS.dangerLight,
+    borderRadius: 8,
+    padding: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.danger,
+  },
+  errorText: { fontSize: 13, color: COLORS.danger },
+
+  section: { gap: 10 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  card: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    gap: 14,
+  },
+  field: { gap: 6 },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textMuted },
+  required: { color: COLORS.danger },
+
+  input: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: COLORS.text,
+    backgroundColor: COLORS.white,
+  },
+  inputMulti: { height: 80, textAlignVertical: 'top' },
+  inputDisabled: { backgroundColor: COLORS.gray50, color: COLORS.textMuted },
+
+  grid2: { flexDirection: 'row', gap: 10 },
+
+  selectRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  selectBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: COLORS.gray50,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  selectBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  selectBtnText: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+  selectBtnTextActive: { color: COLORS.white },
+
+  bottomSaveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginTop: 8,
+  },
+  bottomSaveBtnText: { fontSize: 15, fontWeight: '700', color: COLORS.white },
 });

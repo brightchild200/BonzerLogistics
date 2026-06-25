@@ -175,6 +175,22 @@ function formatDate(iso: string) {
   };
 }
 
+/** Convert YYYY-MM-DD → DD/MM/YYYY for display */
+function toDisplayDate(iso: string): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  if (!y || !m || !d) return iso;
+  return `${d}/${m}/${y}`;
+}
+
+/** Convert DD/MM/YYYY → YYYY-MM-DD for storage */
+function toIsoDate(display: string): string {
+  if (!display) return '';
+  const [d, m, y] = display.split('/');
+  if (!d || !m || !y) return display;
+  return `${y}-${m}-${d}`;
+}
+
 function statusStyle(status: string) {
   switch (status?.toLowerCase()) {
     case 'completed':
@@ -487,31 +503,30 @@ function LogVisitModal({
       if (!selectedCustomer) errs.customer = 'Please select a customer';
     }
 
-    // Follow-up date (mandatory)
-    if (!nextFollowupDate.trim()) {
-      errs.nextFollowupDate = 'Next follow-up date is required';
-    } else if (!/^\d{4}-\d{2}-\d{2}$/.test(nextFollowupDate)) {
-      errs.nextFollowupDate = 'Use format YYYY-MM-DD';
+    // Follow-up date — OPTIONAL. Only validate format if something was entered.
+    if (nextFollowupDate.trim()) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(nextFollowupDate)) {
+        errs.nextFollowupDate = 'Invalid date — please use the date picker';
+      }
     }
 
-    // Follow-up time (optional, but validate format if provided)
+    // Follow-up time — optional, validate format only if provided
     if (nextFollowupTime.trim() && !/^\d{2}:\d{2}$/.test(nextFollowupTime)) {
       errs.nextFollowupTime = 'Use format HH:MM (24h)';
     }
 
-    // Contact person (mandatory)
+    // Contact person — only name and mobile are required; email + designation optional
     if (!contactName.trim()) errs.contactName = 'Name of person spoke to is required';
     if (!contactMobile.trim()) errs.contactMobile = 'Contact number is required';
-    if (!contactEmail.trim()) {
-      errs.contactEmail = 'Email is required';
-    } else if (!/^[^@]+@[^@]+\.[^@]+$/.test(contactEmail.trim())) {
+    if (contactEmail.trim() && !/^[^@]+@[^@]+\.[^@]+$/.test(contactEmail.trim())) {
       errs.contactEmail = 'Enter a valid email';
     }
-    if (!contactDesignation.trim()) errs.contactDesignation = 'Designation is required';
 
     setErrors(errs);
     if (Object.keys(errs).length > 0) {
       console.log('[visits] validation failed', errs);
+    } else {
+      console.log('[visits] validation passed');
     }
     return Object.keys(errs).length === 0;
   }
@@ -558,7 +573,10 @@ function LogVisitModal({
         contact_person_designation: contactDesignation.trim(),
       };
 
-      console.log('[visits] inserting sales_customer_visits payload:', payload);
+      console.log('[visits] ── SAVE ATTEMPT ──────────────────────');
+      console.log('[visits] auth user:', auth.user?.email);
+      console.log('[visits] salesperson id:', spId);
+      console.log('[visits] payload:', JSON.stringify(payload, null, 2));
 
       // Bypass strict Supabase typings (schema.ts is out-of-sync with real DB)
       const insertedRes: any = await (supabase as any)
@@ -571,7 +589,9 @@ function LogVisitModal({
       const insertError = insertedRes?.error;
       if (insertError) throw insertError;
 
-      console.log('[visits] DB insert success, id:', inserted?.id);
+      console.log('[visits] ── INSERT SUCCESS ─────────────────────');
+      console.log('[visits] inserted id:', inserted?.id);
+      console.log('[visits] full response:', JSON.stringify(inserted));
 
       // Upload photo if selected
       if (photoUri && spId && inserted?.id) {
@@ -591,8 +611,16 @@ function LogVisitModal({
       onSaved();
       onClose();
     } catch (err: unknown) {
-      console.error('[visits] submit error:', err);
-      Alert.alert('Error', (err as Error).message ?? 'Could not save visit.');
+      const errMsg = (err as any)?.message ?? (err as any)?.details ?? JSON.stringify(err) ?? 'Could not save visit.';
+      const errCode = (err as any)?.code ?? '';
+      console.error('[visits] ── INSERT FAILED ──────────────────────');
+      console.error('[visits] error object:', JSON.stringify(err));
+      Alert.alert(
+        'Save Failed',
+        errCode === '42501'
+          ? 'Permission denied (RLS). Please contact your administrator.'
+          : `Could not save visit: ${errMsg}`,
+      );
     } finally {
       setSubmitting(false);
     }
@@ -700,7 +728,7 @@ function LogVisitModal({
             </View>
 
             <View style={{ marginTop: 14 }}>
-              <FieldLabel text="EMAIL" required />
+              <FieldLabel text="EMAIL (OPTIONAL)" />
               <TextInput
                 style={inputStyle('contactEmail')}
                 value={contactEmail}
@@ -714,7 +742,7 @@ function LogVisitModal({
             </View>
 
             <View style={{ marginTop: 14 }}>
-              <FieldLabel text="DESIGNATION" required />
+              <FieldLabel text="DESIGNATION (OPTIONAL)" />
               <TextInput
                 style={inputStyle('contactDesignation')}
                 value={contactDesignation}
@@ -729,16 +757,52 @@ function LogVisitModal({
             <View style={ms.sectionDivider}>
               <Text style={ms.sectionTitle}>Next Follow-up</Text>
             </View>
+            <Text style={{ fontSize: 12, color: C.textLight, marginBottom: 12, marginTop: -4 }}>
+              Optional: schedule a follow-up reminder for this visit
+            </Text>
 
-            <FieldLabel text="FOLLOW-UP DATE" required />
-            <TextInput
-              style={inputStyle('nextFollowupDate')}
-              value={nextFollowupDate}
-              onChangeText={setNextFollowupDate}
-              placeholder="YYYY-MM-DD  (e.g. 2026-07-01)"
-              placeholderTextColor={C.textLight}
-              keyboardType="numeric"
-            />
+            <FieldLabel text="FOLLOW-UP DATE (OPTIONAL)" />
+            {IS_WEB ? (
+              <input
+                type="date"
+                value={nextFollowupDate}
+                onChange={(e: any) => setNextFollowupDate(e.target.value)}
+                style={{
+                  width: '100%',
+                  border: `1px solid ${errors.nextFollowupDate ? C.lost : C.border}`,
+                  borderRadius: 10,
+                  padding: '12px 14px',
+                  fontSize: 14,
+                  color: nextFollowupDate ? C.text : C.textLight,
+                  backgroundColor: C.surfaceLowest,
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                } as any}
+              />
+            ) : (
+              <TextInput
+                style={inputStyle('nextFollowupDate')}
+                value={nextFollowupDate ? toDisplayDate(nextFollowupDate) : ''}
+                onChangeText={(val) => {
+                  // Accept DD/MM/YYYY input and convert to YYYY-MM-DD internally
+                  const cleaned = val.replace(/[^0-9/]/g, '');
+                  if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleaned)) {
+                    setNextFollowupDate(toIsoDate(cleaned));
+                  } else {
+                    // Store partial input as-is until complete
+                    setNextFollowupDate(cleaned);
+                  }
+                }}
+                placeholder="DD/MM/YYYY"
+                placeholderTextColor={C.textLight}
+                keyboardType="numeric"
+              />
+            )}
+            {nextFollowupDate ? (
+              <Text style={{ fontSize: 11, color: C.textLight, marginTop: 4 }}>
+                Selected: {toDisplayDate(nextFollowupDate)}
+              </Text>
+            ) : null}
             {errors.nextFollowupDate ? <Text style={ms.errText}>{errors.nextFollowupDate}</Text> : null}
 
             <View style={{ marginTop: 14 }}>
