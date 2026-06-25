@@ -27,8 +27,6 @@ export default function FollowupsScreen() {
     location_name: '',
     notes: '',
     status: 'scheduled',
-    customer_id: '',
-    job_id: '',
   });
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
@@ -70,22 +68,38 @@ export default function FollowupsScreen() {
     const { data: auth } = await supabase.auth.getUser();
     const session = await resolveSalespersonSession(auth.user?.email ?? null);
 
-    if (!session.salesperson) {
+    // Resolve salesperson id — works for both regular salesperson and admin users
+    let salespersonId: number | null = session.salesperson?.id ?? null;
+    if (!salespersonId && session.appUser) {
+      const { data: spRow } = await supabase
+        .from('sales_persons')
+        .select('id')
+        .eq('user_id', session.appUser.id)
+        .maybeSingle();
+      salespersonId = spRow?.id ?? null;
+    }
+
+    if (!salespersonId) {
+      console.warn('[handleSave] No salesperson record found for this user.');
       setSaving(false);
       return;
     }
 
-    await supabase.from('sales_followups').insert({
-      sales_person_id: session.salesperson.id,
-      customer_id: form.customer_id.trim() ? Number(form.customer_id) : null,
-      job_id: form.job_id.trim() ? Number(form.job_id) : null,
+    const { error } = await supabase.from('sales_followups').insert({
+      sales_person_id: salespersonId,
       title: form.title.trim(),
       followup_at: new Date(form.followup_at).toISOString(),
       location_name: form.location_name.trim() || null,
       notes: form.notes.trim() || null,
       status: form.status,
-      created_by: session.appUser?.id ?? null,
     } as any);
+
+    if (error) {
+      console.error('[handleSave] Insert failed:', error.message);
+      setSaving(false);
+      return;
+    }
+
     setSaving(false);
     setShowModal(false);
     setForm({
@@ -94,8 +108,6 @@ export default function FollowupsScreen() {
       location_name: '',
       notes: '',
       status: 'scheduled',
-      customer_id: '',
-      job_id: '',
     });
     loadData();
   }
@@ -109,7 +121,7 @@ export default function FollowupsScreen() {
   const filtered = useMemo(
     () =>
       followups.filter((followup) =>
-        [followup.title, followup.location_name, followup.notes, String(followup.customer_id || ''), String(followup.job_id || '')]
+        [followup.title, followup.location_name, followup.notes]
           .filter(Boolean)
           .join(' ')
           .toLowerCase()
@@ -194,12 +206,6 @@ export default function FollowupsScreen() {
         </FormField>
         <FormField label="Location">
           <FormInput value={form.location_name} onChangeText={(v: string) => setForm((f) => ({ ...f, location_name: v }))} placeholder="Client office or site name" />
-        </FormField>
-        <FormField label="Customer ID">
-          <FormInput value={form.customer_id} onChangeText={(v: string) => setForm((f) => ({ ...f, customer_id: v }))} placeholder="123" keyboardType="numeric" />
-        </FormField>
-        <FormField label="Job ID">
-          <FormInput value={form.job_id} onChangeText={(v: string) => setForm((f) => ({ ...f, job_id: v }))} placeholder="456" keyboardType="numeric" />
         </FormField>
         <FormField label="Status">
           <SelectButtons options={STATUS_OPTIONS} value={form.status} onChange={(v: string) => setForm((f) => ({ ...f, status: v }))} />

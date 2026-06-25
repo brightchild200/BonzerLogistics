@@ -14,23 +14,16 @@ import {
   Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as XLSX from 'xlsx';
 import {
   Search,
   Plus,
-  Edit,
-  FileText,
   Filter,
-  ArrowUpDown,
   Download,
   Printer,
-  Eye,
-  CheckCircle,
   XCircle,
   Package,
-  MapPin,
-  Truck,
   X,
-  ChevronDown,
 } from 'lucide-react-native';
 
 import { supabase } from '@/lib/supabase';
@@ -80,6 +73,20 @@ type EnquiryRow = {
 
 const TAG = '[EnquiriesScreen]';
 
+
+// ─── Date Utilities ───────────────────────────────────────────────────────────
+
+/** Format any date string/ISO to DD/MM/YYYY for display. Returns '-' if invalid. */
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return '-';
+  const day = d.getDate().toString().padStart(2, '0');
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
 function dbg(event: string, payload?: Record<string, unknown>) {
   if (__DEV__) {
     console.log(`${TAG} ${event}`, payload ?? '');
@@ -88,6 +95,72 @@ function dbg(event: string, payload?: Record<string, unknown>) {
 
 function err(event: string, payload?: unknown) {
   console.error(`${TAG} ${event}`, payload ?? '');
+}
+
+// ─── ERP-style Row: single-click selects, double-click opens ─────────────────
+
+type EnquiryRowProps = {
+  enquiry: EnquiryRow;
+  selected: boolean;
+  onSelect: () => void;
+  onOpen: () => void;
+};
+
+function EnquiryRow({ enquiry, selected, onSelect, onOpen }: EnquiryRowProps) {
+  const lastTap = React.useRef<number>(0);
+  const [hovered, setHovered] = React.useState(false);
+
+  function handlePress() {
+    const now = Date.now();
+    if (now - lastTap.current < 350) {
+      // Double-click / double-tap → open
+      onOpen();
+    } else {
+      // Single click → select
+      onSelect();
+    }
+    lastTap.current = now;
+  }
+
+  const rowStyle = [
+    styles.tableRow,
+    hovered && !selected && styles.tableRowHovered,
+    selected && styles.tableRowSelected,
+  ];
+
+  return (
+    <TouchableOpacity
+      onPress={handlePress}
+      activeOpacity={0.85}
+      {...(Platform.OS === 'web' ? {
+        onMouseEnter: () => setHovered(true),
+        onMouseLeave: () => setHovered(false),
+        style: [...rowStyle, { cursor: 'pointer' } as any],
+      } : { style: rowStyle })}
+    >
+      <Text style={[styles.tableCell, styles.colDate, selected && styles.tableCellSelected]}>
+        {formatDate(enquiry.enq_date)}
+      </Text>
+      <Text style={[styles.tableCell, styles.colEnqNo, selected && styles.tableCellSelected]}>
+        {enquiry.enquiry_no || `ENQ-${enquiry.id.toString().padStart(6, '0')}`}
+      </Text>
+      <Text style={[styles.tableCell, styles.colCustomer, selected && styles.tableCellSelected]} numberOfLines={1}>
+        {enquiry.customer_name || 'Unknown'}
+      </Text>
+      <Text style={[styles.tableCell, styles.colSalesperson, selected && styles.tableCellSelected]} numberOfLines={1}>
+        {enquiry.salesperson_name || 'Unassigned'}
+      </Text>
+      <Text style={[styles.tableCell, styles.colMode, selected && styles.tableCellSelected]}>
+        {enquiry.mode_name || 'N/A'}
+      </Text>
+      <View style={styles.colStatus}>
+        <StatusBadge status={enquiry.status || 'Pending'} />
+      </View>
+      <Text style={[styles.tableCell, styles.colJobId, selected && styles.tableCellSelected]}>
+        {enquiry.job_id ? `JOB-${enquiry.job_id.toString().padStart(5, '0')}` : '-'}
+      </Text>
+    </TouchableOpacity>
+  );
 }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -110,6 +183,7 @@ export default function EnquiriesScreen() {
 
   // Filter modal visibility
   const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
   // ── Data loading ──────────────────────────────────────────────────────────
 
@@ -148,13 +222,6 @@ export default function EnquiriesScreen() {
         query = query.eq('sales_person_id', session.salesperson?.id);
       }
 
-      // Add search filter if query exists
-      if (searchQuery) {
-        query = query.or(
-          `customer_name.ilike.%${searchQuery}%,enquiry_no.ilike.%${searchQuery}%,commodity.ilike.%${searchQuery}%`
-        );
-      }
-
       query = query.order('created_at', { ascending: false });
 
       const { data, error: fetchError } = await query;
@@ -188,16 +255,41 @@ export default function EnquiriesScreen() {
       err('loadData → unexpected exception', e);
       setError('Failed to load enquiries. Please pull down to refresh.');
     }
-  }, [searchQuery]);
+  }, []);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Apply filters to enquiries
+  // Apply search + filters to enquiries (all client-side)
   const filteredEnquiries = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
     return enquiries.filter(enquiry => {
-      // Customer name filter
+      // Search across all text fields
+      if (q) {
+        const haystack = [
+          enquiry.enquiry_no,
+          enquiry.customer_name,
+          enquiry.shipper,
+          enquiry.cnee,
+          enquiry.pol,
+          enquiry.pod,
+          enquiry.commodity,
+          enquiry.packages,
+          enquiry.gross_weight,
+          enquiry.status,
+          enquiry.mode_name,
+          enquiry.salesperson_name,
+          enquiry.job_id ? `JOB-${enquiry.job_id.toString().padStart(5, '0')}` : '',
+          formatDate(enquiry.enq_date),
+          formatDate(enquiry.created_at),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      // Customer name filter (from advanced filters panel)
       if (filterCustomer && !enquiry.customer_name?.toLowerCase().includes(filterCustomer.toLowerCase())) {
         return false;
       }
@@ -216,7 +308,7 @@ export default function EnquiriesScreen() {
       }
       return true;
     });
-  }, [enquiries, filterCustomer, filterDate, filterMode, filterStatus]);
+  }, [enquiries, searchQuery, filterCustomer, filterDate, filterMode, filterStatus]);
 
   // ── Refresh ───────────────────────────────────────────────────────────────
 
@@ -244,55 +336,94 @@ export default function EnquiriesScreen() {
     router.push(`/enquiry/enquiry/${id}`);
   }
 
-  function handleEditEnquiry(id: number) {
-    router.push(`/enquiry/enquiry/${id}?edit=true`);
-  }
 
   function handleExportExcel() {
-    // TODO: Implement Excel export functionality
-    alert('Excel export functionality will be implemented');
+    if (filteredEnquiries.length === 0) {
+      alert('No enquiries to export.');
+      return;
+    }
+
+    const rows = filteredEnquiries.map(enq => ({
+      'Date': formatDate(enq.enq_date),
+      'Enquiry No': enq.enquiry_no || `ENQ-${enq.id.toString().padStart(6, '0')}`,
+      'Customer Name': enq.customer_name || '',
+      'Salesperson': enq.salesperson_name || '',
+      'Shipper': enq.shipper || '',
+      'Consignee': enq.cnee || '',
+      'POL': enq.pol || '',
+      'POD': enq.pod || '',
+      'Mode': enq.mode_name || '',
+      'Commodity': enq.commodity || '',
+      'Packages': enq.packages || '',
+      'Gross Weight': enq.gross_weight || '',
+      'Status': enq.status || '',
+      'Job ID': enq.job_id ? `JOB-${enq.job_id.toString().padStart(5, '0')}` : '',
+      'Created At': formatDate(enq.created_at),
+      'Updated At': formatDate(enq.updated_at),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Enquiries');
+
+    const today = new Date();
+    const dd = today.getDate().toString().padStart(2, '0');
+    const mm = (today.getMonth() + 1).toString().padStart(2, '0');
+    const yyyy = today.getFullYear();
+    const filename = `Enquiries_${dd}-${mm}-${yyyy}.xlsx`;
+
+    XLSX.writeFile(wb, filename);
   }
 
-  async function handlePrint(enquiry: EnquiryRow) {
-    // Generate printable content for the enquiry
-    const printContent = `
-ENQUIRY DETAILS
-===============
-Enquiry No: ${enquiry.enquiry_no || 'N/A'}
-Date: ${enquiry.enq_date ? new Date(enquiry.enq_date).toLocaleDateString() : 'N/A'}
-Customer: ${enquiry.customer_name || 'N/A'}
-Mode: ${enquiry.mode_name || 'N/A'}
-Status: ${enquiry.status || 'N/A'}
-Job ID: ${enquiry.job_id || 'N/A'}
+  function handlePrintAll() {
+    if (filteredEnquiries.length === 0) {
+      Alert.alert('Nothing to Print', 'No enquiries are currently visible.');
+      return;
+    }
 
-Route: ${enquiry.pol || 'N/A'} → ${enquiry.pod || 'N/A'}
-Commodity: ${enquiry.commodity || 'N/A'}
-Packages: ${enquiry.packages || '0'} ${enquiry.packages_unit || ''}
-Gross Weight: ${enquiry.gross_weight || '0'} ${enquiry.gross_weight_unit || ''}
-    `.trim();
-
-    // For web platform, use window.print
     if (Platform.OS === 'web') {
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(`
-          <html>
-            <head><title>Enquiry ${enquiry.enquiry_no || enquiry.id}</title></head>
-            <body>
-              <pre style="font-family: monospace; font-size: 12px; white-space: pre-wrap;">${printContent}</pre>
-              <script>window.onload = function() { window.print(); window.close(); }</script>
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
-      }
+      const today = new Date().toLocaleDateString('en-GB');
+      const rows = filteredEnquiries.map((enq, i) =>
+        `<tr style="background:${i % 2 === 0 ? '#fff' : '#f8fafc'}">
+          <td>${formatDate(enq.enq_date)}</td>
+          <td>${enq.enquiry_no || `ENQ-${enq.id.toString().padStart(6, '0')}`}</td>
+          <td>${enq.customer_name || '-'}</td>
+          <td>${enq.mode_name || '-'}</td>
+          <td>${enq.pol || '-'} → ${enq.pod || '-'}</td>
+          <td>${enq.commodity || '-'}</td>
+          <td>${enq.status || '-'}</td>
+          <td>${enq.job_id ? `JOB-${enq.job_id.toString().padStart(5, '0')}` : '-'}</td>
+        </tr>`
+      ).join('');
+
+      const html = `<html><head><title>Enquiries – ${today}</title>
+        <style>
+          body { font-family: Arial, sans-serif; font-size: 11px; padding: 20px; }
+          h2 { font-size: 16px; margin-bottom: 4px; }
+          p { margin: 0 0 12px; color: #64748b; font-size: 11px; }
+          table { width: 100%; border-collapse: collapse; }
+          th { background: #0f172a; color: #fff; padding: 8px 6px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; }
+          td { padding: 7px 6px; border-bottom: 1px solid #e2e8f0; }
+          @media print { body { padding: 0; } }
+        </style></head>
+        <body>
+          <h2>Enquiries Report</h2>
+          <p>Printed: ${today} &nbsp;|&nbsp; ${filteredEnquiries.length} record(s)</p>
+          <table>
+            <thead><tr>
+              <th>Date</th><th>Enquiry No</th><th>Customer</th>
+              <th>Mode</th><th>Route</th><th>Commodity</th>
+              <th>Status</th><th>Job ID</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <script>window.onload = function() { window.print(); }</script>
+        </body></html>`;
+
+      const w = window.open('', '_blank');
+      if (w) { w.document.write(html); w.document.close(); }
     } else {
-      // For mobile, show alert with content (print requires native modules)
-      Alert.alert(
-        'Print Enquiry',
-        printContent,
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Print', `${filteredEnquiries.length} enquiry(s) ready to print. Use the web version for full print support.`);
     }
   }
 
@@ -373,7 +504,7 @@ Gross Weight: ${enquiry.gross_weight || '0'} ${enquiry.gross_weight_unit || ''}
           <Search size={18} color={COLORS.textLight} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by customer, enquiry no, commodity..."
+            placeholder="Search by customer, enquiry no, mode, status, date..."
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholderTextColor={COLORS.textLight}
@@ -463,13 +594,13 @@ Gross Weight: ${enquiry.gross_weight || '0'} ${enquiry.gross_weight_unit || ''}
 
       {/* Action Bar */}
       <View style={styles.actionBar}>
-        <TouchableOpacity style={styles.actionBtn} onPress={handleExportExcel}>
-          <Download size={16} color={COLORS.text} />
-          <Text style={styles.actionBtnText}>Export</Text>
+        <TouchableOpacity style={styles.exportBtn} onPress={handleExportExcel}>
+          <Download size={15} color={COLORS.white} />
+          <Text style={styles.exportBtnText}>Export Excel</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={handlePrint}>
-          <Printer size={16} color={COLORS.text} />
-          <Text style={styles.actionBtnText}>Print</Text>
+        <TouchableOpacity style={styles.printBtn} onPress={handlePrintAll}>
+          <Printer size={15} color={COLORS.text} />
+          <Text style={styles.printBtnText}>Print</Text>
         </TouchableOpacity>
       </View>
 
@@ -510,7 +641,7 @@ Gross Weight: ${enquiry.gross_weight || '0'} ${enquiry.gross_weight_unit || ''}
             <Text style={styles.emptyTitle}>No enquiries found</Text>
             <Text style={styles.emptySubtitle}>
               {searchQuery || hasActiveFilters()
-                ? 'Try adjusting your search or filters'
+                ? 'No matching enquiries found'
                 : 'Create your first enquiry to get started'}
             </Text>
             {!searchQuery && !hasActiveFilters() && (
@@ -522,6 +653,11 @@ Gross Weight: ${enquiry.gross_weight || '0'} ${enquiry.gross_weight_unit || ''}
           </View>
         ) : (
           <View style={styles.tableContainer}>
+            {/* Helper hint */}
+            <View style={styles.tableHint}>
+              <Text style={styles.tableHintText}>Single-click to select  •  Double-click to open enquiry</Text>
+            </View>
+
             {/* Table Header */}
             <View style={styles.tableHeader}>
               <Text style={[styles.tableHeaderCell, styles.colDate]}>Date</Text>
@@ -531,64 +667,17 @@ Gross Weight: ${enquiry.gross_weight || '0'} ${enquiry.gross_weight_unit || ''}
               <Text style={[styles.tableHeaderCell, styles.colMode]}>Mode</Text>
               <Text style={[styles.tableHeaderCell, styles.colStatus]}>Status</Text>
               <Text style={[styles.tableHeaderCell, styles.colJobId]}>Job ID</Text>
-              <Text style={[styles.tableHeaderCell, styles.colActions]}>Actions</Text>
             </View>
 
             {/* Table Body */}
             {filteredEnquiries.map((enquiry) => (
-              <View key={enquiry.id} style={styles.tableRow}>
-                <Text style={[styles.tableCell, styles.colDate]}>
-                  {enquiry.enq_date
-                    ? new Date(enquiry.enq_date).toLocaleDateString()
-                    : '-'}
-                </Text>
-                <Text style={[styles.tableCell, styles.colEnqNo]}>
-{enquiry.enquiry_no || `ENQ-${enquiry.id.toString().padStart(6, '0')}`}
-                </Text>
-                <Text style={[styles.tableCell, styles.colCustomer]} numberOfLines={1}>
-                  {enquiry.customer_name || 'Unknown'}
-                </Text>
-                <Text style={[styles.tableCell, styles.colSalesperson]} numberOfLines={1}>
-                  {enquiry.salesperson_name || 'Unassigned'}
-                </Text>
-                <Text style={[styles.tableCell, styles.colMode]}>
-                  {enquiry.mode_name || 'N/A'}
-                </Text>
-                <View style={[styles.tableCell, styles.colStatus]}>
-                  <StatusBadge status={enquiry.status || 'Pending'} />
-                </View>
-                <Text style={[styles.tableCell, styles.colJobId]}>
-                  {enquiry.job_id ? `JOB-${enquiry.job_id.toString().padStart(5, '0')}` : '-'}
-                </Text>
-                <View style={[styles.tableCell, styles.colActions]}>
-                  <View style={styles.actionButtons}>
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => handleViewEnquiry(enquiry.id)}
-                    >
-                      <Eye size={12} color={COLORS.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => handleEditEnquiry(enquiry.id)}
-                    >
-                      <Edit size={12} color={COLORS.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => handleCancelEnquiry(enquiry)}
-                    >
-                      <XCircle size={12} color={enquiry.status === 'Cancelled' ? COLORS.textLight : COLORS.danger} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => handlePrint(enquiry)}
-                    >
-                      <Printer size={12} color={COLORS.primary} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
+              <EnquiryRow
+                key={enquiry.id}
+                enquiry={enquiry}
+                selected={selectedId === enquiry.id}
+                onSelect={() => setSelectedId(enquiry.id)}
+                onOpen={() => handleViewEnquiry(enquiry.id)}
+              />
             ))}
           </View>
         )}
@@ -738,24 +827,41 @@ const styles = StyleSheet.create({
 
   actionBar: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingVertical: 12,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
-  actionBtn: {
+  exportBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 7,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  exportBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.white,
+  },
+  printBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
     backgroundColor: COLORS.white,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  actionBtnText: {
+  printBtnText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.text,
   },
 
@@ -866,19 +972,31 @@ const styles = StyleSheet.create({
   colMode: { width: 80, flexShrink: 0 },
   colStatus: { width: 80, flexShrink: 0 },
   colJobId: { width: 70, flexShrink: 0 },
-  colActions: { width: 100, flexShrink: 0, justifyContent: 'flex-end' },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 6,
-    justifyContent: 'flex-end',
-  },
-  actionBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
+
+  tableRowHovered: {
     backgroundColor: COLORS.gray50,
-    alignItems: 'center',
-    justifyContent: 'center',
+  },
+  tableRowSelected: {
+    backgroundColor: COLORS.primaryLight,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary,
+  },
+  tableCellSelected: {
+    color: COLORS.primaryDark,
+    fontWeight: '600',
+  },
+
+  tableHint: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.gray50,
+  },
+  tableHintText: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    fontStyle: 'italic',
   },
 
   // Card styles (kept for fallback)
