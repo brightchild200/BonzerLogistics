@@ -25,6 +25,8 @@ import {
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { COLORS, type SalesAttendanceRow } from '@/lib/types';
+import { formatClockTime, formatDateEnIn } from '@/lib/date';
+
 import { StatusBadge } from '@/components/Badge';
 import { mapSalesAttendance } from '@/lib/salesperson-mappers';
 import LocationIQMap from '@/components/LocationIQMap';
@@ -540,13 +542,11 @@ export default function AttendanceScreen() {
             <View style={styles.metaRow}>
               <View style={styles.metaBlock}>
                 <Text style={styles.metaLabel}>Date</Text>
-                <Text style={styles.metaValue}>{new Date().toLocaleDateString()}</Text>
+                <Text style={styles.metaValue}>{formatDateEnIn(new Date())}</Text>
               </View>
               <View style={styles.metaBlock}>
                 <Text style={styles.metaLabel}>Time</Text>
-                <Text style={styles.metaValue}>
-                  {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </Text>
+                <Text style={styles.metaValue}>{formatClockTime(new Date())}</Text>
               </View>
             </View>
 
@@ -733,10 +733,10 @@ export default function AttendanceScreen() {
                 {tableRows.map((rec, idx) => {
                   const card = mapSalesAttendance(rec);
                   const checkInLabel = rec.check_in_at
-                    ? new Date(rec.check_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    ? formatClockTime(rec.check_in_at)
                     : '—';
                   const checkOutLabel = rec.check_out_at
-                    ? new Date(rec.check_out_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    ? formatClockTime(rec.check_out_at)
                     : rec.check_in_at
                       ? 'Active'
                       : '—';
@@ -754,9 +754,9 @@ export default function AttendanceScreen() {
                 return (
                 
                     <View key={rec.id} style={[styles.tableRow, idx > 0 && styles.tableRowBorder]}>
-                      <Text style={[styles.tableCell, styles.colDate]}>{new Date(rec.attendance_date).toLocaleDateString()}</Text>
+                      <Text style={[styles.tableCell, styles.colDate]}>{formatDateEnIn(rec.attendance_date)}</Text>
                       <Text style={[styles.tableCell, styles.colCheckIn]}>{checkInLabel}</Text>
-                      <Text style={[styles.tableCell, styles.colCheckOut, !rec.check_out_at && styles.mutedCell]}>{checkOutLabel}</Text>
+                      <Text style={[styles.tableCell, styles.colCheckOut, !rec.check_out_at && styles.mutedCell]}>{rec.check_out_at ? checkInLabel : rec.check_in_at ? 'Active' : '—'}</Text>
                       <Text style={[styles.tableCell, styles.colDuration]}>{durationLabel}</Text>
                       <Text style={[styles.tableCell, styles.colLocation]} numberOfLines={1}>
                         {locationLabel}

@@ -864,25 +864,13 @@ function LogVisitModal({
             />
 
             {/* ── Location Address ── */}
-            <View style={ms.gpsBox}>
-              <View style={ms.gpsTop}>
-                <View style={ms.gpsLeft}>
-                  <MapPin size={16} color={C.primary} />
-                  <Text style={ms.gpsTitle}>Location Capture</Text>
-                </View>
-                <View style={[ms.accuracyChip, gps.loading && { backgroundColor: C.followupBg }]}>
-                  <View style={[ms.dot, { backgroundColor: gps.loading ? C.followup : C.won }]} />
-                  <Text style={[ms.accuracyText, { color: gps.loading ? C.followup : C.won }]}>
-                    {gps.loading ? 'Acquiring…' : 'Ready'}
-                  </Text>
-                </View>
-              </View>
+            {/* Location Capture (silent): keep capturing GPS internally, but don't show “acquiring” UI or address to user. */}
+            <View style={{ height: 0, overflow: 'hidden' }}>
               {gps.loading ? (
-                <ActivityIndicator size="small" color={C.primary} style={{ marginTop: 8 }} />
-              ) : (
-                <Text style={ms.gpsAddr} numberOfLines={2}>{gps.address ?? '—'}</Text>
-              )}
+                <ActivityIndicator size="small" color={C.primary} />
+              ) : null}
             </View>
+
 
             {/* ── Photo Upload ── */}
             <TouchableOpacity style={ms.photoBox} onPress={pickPhoto}>
@@ -1116,24 +1104,48 @@ export default function CustomerVisitsScreen() {
       .select(
         `id, customer_id, visit_start, location_name, location_address,
          latitude, longitude, accuracy_meters, remarks, status, outcome, photo_path,
-         customer_master(id, name, contact_person)`,
+         sales_person_id`,
         { count: 'exact' },
       )
       .order('visit_start', { ascending: false })
       .range(from, to);
 
-
     if (!canSeeTeamData && spId) query = query.eq('sales_person_id', spId);
 
     const { data, count } = await query;
-    const salespersonIds = Array.from(new Set((data ?? []).map((v: any) => v.sales_person_id).filter((id): id is number => typeof id === 'number')));
+
+    const visitsRaw = (data ?? []) as any[];
+
+    // salesperson name map
+    const salespersonIds = Array.from(
+      new Set(visitsRaw.map((v) => v.sales_person_id).filter((id): id is number => typeof id === 'number')),
+    );
     let salespersonMap: Record<number, string> = {};
     if (salespersonIds.length > 0) {
-      const { data: salespersonRows } = await supabase.from('sales_persons').select('id, name').in('id', salespersonIds);
+      const { data: salespersonRows } = await supabase
+        .from('sales_persons')
+        .select('id, name')
+        .in('id', salespersonIds);
       salespersonMap = Object.fromEntries((salespersonRows ?? []).map((row) => [row.id, row.name]));
     }
-    const mapped: VisitRow[] = (data ?? []).map((v: Record<string, unknown>) => {
-      const cm = v.customer_master as { name?: string; contact_person?: string } | null;
+
+    // customer name map (avoid relying on join correctness)
+    const customerIds = Array.from(
+      new Set(visitsRaw.map((v) => v.customer_id).filter((id): id is number => typeof id === 'number')),
+    );
+    let customerMap: Record<number, { name?: string; contact_person?: string }> = {};
+    if (customerIds.length > 0) {
+      const { data: customerRows } = await supabase
+        .from('customer_master')
+        .select('id, name, contact_person')
+        .in('id', customerIds);
+      customerMap = Object.fromEntries(
+        (customerRows ?? []).map((row) => [row.id, { name: row.name, contact_person: row.contact_person }]),
+      );
+    }
+
+    const mapped: VisitRow[] = visitsRaw.map((v) => {
+      const cm = v.customer_id ? customerMap[v.customer_id] : undefined;
       return {
         ...(v as unknown as VisitRow),
         customer_name: cm?.name,
@@ -1141,20 +1153,22 @@ export default function CustomerVisitsScreen() {
         salesperson_name: v.sales_person_id ? (salespersonMap[Number(v.sales_person_id)] || null) : null,
       };
     });
+
     setVisits(mapped);
     setTotal(count ?? 0);
 
-    // Also load all for stats (limit 200)
-    if (pageNum === 1) {
-      let allQ = (supabase as any)
-        .from('sales_customer_visits' as any)
-        .select('status, visit_start, visit_end')
-        .order('visit_start', { ascending: false })
-        .limit(200);
-      if (!canSeeTeamData && spId) allQ = allQ.eq('sales_person_id', spId);
-      const { data: allD } = await allQ;
-      setAllVisits(allD ?? []);
-    }
+    // Stats (limit 200)
+    let allQ = (supabase as any)
+      .from('sales_customer_visits' as any)
+      .select('status, visit_start, visit_end');
+
+    if (!canSeeTeamData && spId) allQ = allQ.eq('sales_person_id', spId);
+
+    allQ = allQ.order('visit_start', { ascending: false }).limit(200);
+
+    const { data: allD, error: allErr } = await allQ;
+    if (allErr) console.error('[visits] stats query failed', allErr);
+    setAllVisits((allD ?? []) as any);
   }
 
   async function loadAll(pageNum = 1) {

@@ -1,0 +1,155 @@
+How to Host This Expo (React Native + Web) App + Do You Need a Server?
+
+Overview
+- This repo is an Expo Router app (mobile + web).
+- It also contains a backend folder with an Express REST API (backend/server.js).
+
+Key Point: Do you need a server?
+1) Expo app on the web (frontend)
+   - You DO NOT need a server if you host it as static files.
+   - You only need a static file host (Vercel / Netlify / Cloudflare Pages / S3 / GitHub Pages).
+
+2) Backend API (Express)
+   - You DO need a server to run backend/server.js.
+   - Your Expo app will call the backend via HTTP (ex: /api/enquiries, /api/attendance, etc.).
+
+So you usually deploy TWO things:
+- Frontend: static web hosting (no server needed)
+- Backend: Node/Express hosting (server needed)
+
+------------------------------------------------------------
+A) Hosting the Expo web app (static hosting)
+------------------------------------------------------------
+Step 1: Build the web output
+- From the project root (this repo):
+  npm run build:web
+
+Step 2: Find the produced build folder
+- Expo export creates a directory (commonly named something like web-build/, dist/, or similar).
+- If you don’t see it, check the console output of npm run build:web for the exact output path.
+
+Step 3: Upload the build folder to static hosting
+Pick one:
+- Vercel (Static)
+- Netlify (Static)
+- Cloudflare Pages (Static)
+- S3 (Static website)
+- GitHub Pages
+
+Typical static hosting settings:
+- Build command: (optional if you already built)
+- Publish directory: the Expo export output folder
+- Make sure your hosting “SPA fallback” is configured if needed.
+
+Note about Expo Router
+- Expo web export outputs real HTML/JS routes.
+- For simplicity, static hosts usually work fine.
+- If you use deep routes and get 404 on refresh, enable SPA fallback/rewrites in the host.
+
+------------------------------------------------------------
+B) Hosting the backend (Express REST API)
+------------------------------------------------------------
+Step 1: Deploy backend/server.js
+Your backend entry is:
+- backend/server.js
+
+Deploy with a Node hosting provider that runs Express:
+- Render
+- Railway
+- Fly.io
+- DigitalOcean App Platform
+- Heroku (if available)
+- AWS Elastic Beanstalk / ECS
+
+Step 2: Set backend environment variables
+The backend likely needs:
+- Supabase credentials (service role key or whatever backend code uses)
+- Any mailer/whatsapp credentials (if enabled)
+- PORT
+
+You must consult backend code to know exact variable names.
+
+Step 3: Confirm the API works
+After deployment, test:
+- GET https://<backend-domain>/ (health check)
+- GET/POST https://<backend-domain>/api/enquiries
+
+------------------------------------------------------------
+C) Connect frontend to backend
+------------------------------------------------------------
+Your Expo web app must call the deployed backend base URL.
+Typical approach:
+- In the frontend, use an env var like:
+  EXPO_PUBLIC_API_BASE_URL=https://<backend-domain>
+- Then code calls something like:
+  ${API_BASE_URL}/api/enquiries
+
+Make sure the API URL is the deployed one (not localhost).
+
+------------------------------------------------------------
+D) Hosting BOTH mobile + web
+------------------------------------------------------------
+- Mobile (iOS/Android): you publish builds via Expo Application Services (EAS) or App Stores.
+- Web: you host the exported static build.
+
+This repo’s scripts include:
+- npm run dev
+- npm run build:web (for web)
+
+For mobile production, you usually do:
+- Install EAS CLI
+- Create an EAS project
+- Build with EAS and submit to stores
+
+(Exact steps depend on your Expo account setup.)
+
+------------------------------------------------------------
+Practical “deployment checklist”
+------------------------------------------------------------
+1) Decide hosting:
+   - Frontend: static host (Vercel/Netlify/Cloudflare Pages/S3)
+   - Backend: Node host (Render/Railway/Fly/etc.)
+2) Build web:
+   - npm run build:web
+3) Deploy web output folder to static host.
+4) Deploy backend/server.js to Node host.
+5) Set environment variables for backend.
+6) Set EXPO_PUBLIC API base URL (frontend) to backend domain.
+7) Test:
+   - Load web app in browser
+   - Login
+   - Verify enquiries/attendance endpoints work
+
+------------------------------------------------------------
+Common pitfalls
+------------------------------------------------------------
+- Using localhost in production URLs.
+- Backend CORS configuration blocking browser requests.
+- Deep linking / refresh causing 404 on static hosting (fix with rewrites if needed).
+- Missing service role keys on backend (backend may require elevated Supabase access).
+
+------------------------------------------------------------
+Quick commands (from repo root)
+------------------------------------------------------------
+1) Install dependencies (once):
+   npm install
+
+2) Run locally (dev):
+   npm run dev
+
+3) Build web for deployment:
+   npm run build:web
+
+4) Start backend locally (for testing):
+   (from backend folder) node server.js
+   If you have a backend package.json script, use that instead.
+
+
+Correct: your app UI is currently “frontend → Supabase” and is not using your Express backend routes.
+
+Screens like attendance, enquiries, leads, followups, enquiry details all import supabase from lib/supabase.ts and perform CRUD using supabase.from(...).select()/insert()/update()/delete().
+Your Express backend (backend/server.js + backend/routes/attendance.js, backend/routes/enquiries.js) is present, but not called by the current frontend.
+So right now:
+
+✅ You can deploy only the frontend (web static hosting) and still have the app work (as long as Supabase is set up + RLS policies are correct).
+❌ You only need the Express backend if you later refactor to call /api/... endpoints instead of talking directly to Supabase (or if you add server-only features like protected secrets, mailer/whatsapp, etc.).

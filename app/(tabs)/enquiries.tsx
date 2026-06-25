@@ -181,6 +181,8 @@ export default function EnquiriesScreen() {
   const [filterStatus, setFilterStatus] = useState('All');
   const [showFilters, setShowFilters] = useState(false);
 
+  
+
   // Filter modal visibility
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -333,7 +335,7 @@ export default function EnquiriesScreen() {
   }
 
   function handleViewEnquiry(id: number) {
-    router.push(`/enquiry/enquiry/${id}`);
+    router.push(`/enquiry/${id}`);
   }
 
 
