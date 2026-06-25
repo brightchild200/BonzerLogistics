@@ -172,8 +172,8 @@ function WebSidebar({
               </View>
               {!collapsed && (
                 <View>
-                  <Text style={styles.webBrandTitle}>Logistics Pro</Text>
-                  <Text style={styles.webBrandSub}>Attendance Workspace</Text>
+                  <Text style={styles.webBrandTitle}>Bonzer Logistics</Text>
+                  <Text style={styles.webBrandSub}>Sales Dashboard</Text>
                 </View>
               )}
             </View>

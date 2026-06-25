@@ -1,17 +1,14 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   ArrowRight,
   Bell,
   CalendarClock,
-  CheckCircle2,
-  Download,
   FileText,
   MapPinned,
   Megaphone,
   ShieldCheck,
   Users,
-  X,
 } from 'lucide-react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -26,7 +23,6 @@ import {
 import { EmptyState } from '@/components/EmptyState';
 import { StatusBadge } from '@/components/Badge';
 import {
-  getStatusPresentation,
   mapNotificationLog,
   mapSalesAttendance,
   mapSalesFollowup,
@@ -46,6 +42,10 @@ type DashboardMetrics = {
 
 const COMPLETED_STATUSES = ['completed', 'complete', 'done', 'closed'];
 
+// Feature flag: controls whether the "View Detailed Analytics" link renders
+// under the Performance Overview chart. Defaults to false (hidden).
+const ENABLE_DETAILED_ANALYTICS = false;
+
 type EnquiryRow = {
   id: number;
   enq_date: string | null;
@@ -57,6 +57,18 @@ type JobRow = {
   enq_date: string | null;
   sales_person_id: number | null;
 };
+
+function getFollowupTimestamp(row: SalesFollowupRow): number {
+  const scheduled = (row as { followup_at?: string | null }).followup_at;
+  if (!scheduled) return Number.POSITIVE_INFINITY;
+  const parsed = new Date(scheduled).getTime();
+  return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed;
+}
+
+// Web-only pointer cursor for clickable cards. Declared outside StyleSheet.create
+// (and typed as `any`) since `cursor` isn't part of React Native's ViewStyle;
+// react-native-web reads it fine, and native platforms simply ignore it.
+const pointerCursorStyle: any = Platform.OS === 'web' ? { cursor: 'pointer' } : {};
 
 function isClosedFollowup(status: string | null | undefined) {
   return COMPLETED_STATUSES.includes((status || '').trim().toLowerCase());
@@ -150,73 +162,48 @@ function MetricTile({
   subtitle,
   accent,
   icon,
+  onPress,
 }: {
   title: string;
   value: React.ReactNode;
   subtitle?: string;
   accent: string;
   icon: React.ReactNode;
+  onPress?: () => void;
 }) {
-  return (
-    <View style={styles.metricCard}>
+  const [hovered, setHovered] = useState(false);
+
+  const content = (
+    <>
       <View style={[styles.metricIconWrap, { backgroundColor: `${accent}18` }]}>{icon}</View>
       <View style={styles.metricCopy}>
         <Text style={styles.metricLabel}>{title}</Text>
         <Text style={[styles.metricValue, { color: accent }]}>{value}</Text>
         {subtitle ? <Text style={styles.metricSubtitle}>{subtitle}</Text> : null}
       </View>
-    </View>
+    </>
   );
-}
 
-function MonthTargetCard({
-  visits,
-  enquiries,
-  jobs,
-}: {
-  visits: number;
-  enquiries: number;
-  jobs: number;
-}) {
-  const rows = [
-    { label: 'Visits', value: visits, color: COLORS.primary },
-    { label: 'Enquiries', value: enquiries, color: COLORS.warning },
-    { label: 'Jobs', value: jobs, color: COLORS.success },
-  ];
-  const maxValue = Math.max(1, ...rows.map((row) => row.value));
+  if (!onPress) {
+    return <View style={styles.metricCard}>{content}</View>;
+  }
 
   return (
-    <View style={styles.monthCard}>
-      <View style={styles.monthCardHeader}>
-        <View>
-          <Text style={styles.monthCardTitle}>Month Target</Text>
-          <Text style={styles.monthCardSubtitle}>Visits, enquiries, and jobs this month</Text>
-        </View>
-        <View style={styles.monthCardChip}>
-          <CalendarClock size={14} color={COLORS.primary} />
-          <Text style={styles.monthCardChipText}>This month</Text>
-        </View>
-      </View>
-
-      <View style={styles.monthCardRows}>
-        {rows.map((row) => (
-          <View key={row.label} style={styles.monthCardRow}>
-            <View style={styles.monthCardRowHead}>
-              <Text style={styles.monthCardRowLabel}>{row.label}</Text>
-              <Text style={styles.monthCardRowValue}>{row.value}</Text>
-            </View>
-            <View style={styles.monthCardTrack}>
-              <View
-                style={[
-                  styles.monthCardFill,
-                  { width: `${Math.max(10, Math.round((row.value / maxValue) * 100))}%`, backgroundColor: row.color },
-                ]}
-              />
-            </View>
-          </View>
-        ))}
-      </View>
-    </View>
+    <Pressable
+      onPress={onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${title}`}
+      style={({ pressed }) => [
+        styles.metricCard,
+        pointerCursorStyle,
+        hovered && styles.metricCardHovered,
+        pressed && styles.metricCardPressed,
+      ]}
+    >
+      {content}
+    </Pressable>
   );
 }
 
@@ -274,6 +261,7 @@ function CheckInTile({
 
 function ChartSection({
   series,
+  showDetailedAnalytics = false,
 }: {
   series: Array<{
     key: string;
@@ -282,6 +270,7 @@ function ChartSection({
     jobs: number;
     enquiries: number;
   }>;
+  showDetailedAnalytics?: boolean;
 }) {
   const maxValue = Math.max(1, ...series.map((entry) => Math.max(entry.visits, entry.jobs, entry.enquiries)));
 
@@ -339,22 +328,24 @@ function ChartSection({
         ))}
       </View>
 
-      <View style={styles.chartFooter}>
-        <Pressable
-          onPress={() => {
-            console.log('[dashboard] detailed analytics tapped');
-          }}
-          style={({ pressed }) => [styles.linkButton, pressed && styles.linkButtonPressed]}
-        >
-          <Text style={styles.linkButtonText}>View Detailed Analytics</Text>
-          <ArrowRight size={16} color={COLORS.primary} />
-        </Pressable>
-      </View>
+      {showDetailedAnalytics ? (
+        <View style={styles.chartFooter}>
+          <Pressable
+            onPress={() => {
+              console.log('[dashboard] detailed analytics tapped');
+            }}
+            style={({ pressed }) => [styles.linkButton, pressed && styles.linkButtonPressed]}
+          >
+            <Text style={styles.linkButtonText}>View Detailed Analytics</Text>
+            <ArrowRight size={16} color={COLORS.primary} />
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
 
-function ActivityItem({
+function AlertItem({
   icon,
   title,
   subtitle,
@@ -392,7 +383,6 @@ export default function DashboardScreen() {
   const [todayAttendance, setTodayAttendance] = useState<SalesAttendanceCard | null>(null);
   const [todayAttendanceRow, setTodayAttendanceRow] = useState<SalesAttendanceRow | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [showAnnouncement, setShowAnnouncement] = useState(true);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -504,33 +494,15 @@ export default function DashboardScreen() {
     };
   }, [attendanceRows, enquiryRows, followups]);
 
-  const upcomingFollowups = useMemo(() => followups.slice(0, 3).map(mapSalesFollowup), [followups]);
-  const recentNotifications = useMemo(() => notificationRows.slice(0, 3).map(mapNotificationLog), [notificationRows]);
-
-  const monthTarget = useMemo(() => ({
-    visits: metrics.visitsThisMonth,
-    enquiries: metrics.enquiriesThisMonth,
-    jobs: jobRows.length,
-  }), [jobRows.length, metrics.enquiriesThisMonth, metrics.visitsThisMonth]);
-
-  const statusEntries = useMemo(() => {
-    const breakdown = followups.reduce<Record<string, { label: string; count: number; tone: string }>>((acc, row) => {
-      const config = getStatusPresentation(row.status);
-      if (!acc[config.label]) {
-        acc[config.label] = {
-          label: config.label,
-          count: 0,
-          tone: config.tone,
-        };
-      }
-      acc[config.label].count += 1;
-      return acc;
-    }, {});
-
-    return Object.values(breakdown).sort((a, b) => b.count - a.count);
+  const upcomingFollowups = useMemo(() => {
+    // Sort ascending by scheduled date/time so the soonest follow-up always
+    // appears first, regardless of the order data arrives in.
+    const sorted = [...followups].sort(
+      (a, b) => getFollowupTimestamp(a) - getFollowupTimestamp(b),
+    );
+    return sorted.slice(0, 3).map(mapSalesFollowup);
   }, [followups]);
-
-  const highestStatusCount = Math.max(1, ...statusEntries.map((entry) => entry.count));
+  const recentAlerts = useMemo(() => notificationRows.slice(0, 3).map(mapNotificationLog), [notificationRows]);
 
   const weeklySeries = useMemo(() => {
     const today = new Date();
@@ -549,53 +521,18 @@ export default function DashboardScreen() {
     });
   }, [attendanceRows, enquiryRows, jobRows]);
 
-  const activityItems = useMemo(() => {
-    const items: Array<{
-      key: string;
-      icon: React.ReactNode;
-      title: string;
-      subtitle: string;
-      detail: string;
-      accent: string;
-    }> = [];
-
-    if (todayAttendance) {
-      items.push({
-        key: `attendance-${todayAttendance.id}`,
-        icon: <CheckCircle2 size={14} color={COLORS.white} />,
-        title: 'Checked in',
-        subtitle: todayAttendance.title,
-        detail: todayAttendance.detail || 'Today',
-        accent: COLORS.success,
-      });
-    }
-
-    if (recentNotifications[0]) {
-      const notification = recentNotifications[0];
-      items.push({
+  const alertItems = useMemo(
+    () =>
+      recentAlerts.slice(0, 3).map((notification) => ({
         key: `notification-${notification.id}`,
         icon: <Bell size={14} color={COLORS.white} />,
         title: notification.title,
         subtitle: notification.subtitle,
         detail: notification.detail,
         accent: COLORS.info,
-      });
-    }
-
-    if (upcomingFollowups[0]) {
-      const followup = upcomingFollowups[0];
-      items.push({
-        key: `followup-${followup.id}`,
-        icon: <CalendarClock size={14} color={COLORS.white} />,
-        title: followup.title,
-        subtitle: followup.subtitle,
-        detail: followup.detail,
-        accent: COLORS.warning,
-      });
-    }
-
-    return items.slice(0, 3);
-  }, [recentNotifications, todayAttendance, upcomingFollowups]);
+      })),
+    [recentAlerts],
+  );
 
   return (
     <View style={styles.screen}>
@@ -606,52 +543,19 @@ export default function DashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
       >
         <View style={styles.page}>
-          {showAnnouncement ? (
-            <View style={styles.announcementBar}>
-              <View style={styles.announcementCopy}>
-                <Megaphone size={18} color={COLORS.white} />
-                <Text style={styles.announcementText}>
-                  Sales sync is live: follow-ups, attendance, and notification logs refresh on pull.
-                </Text>
-              </View>
-              <Pressable onPress={() => setShowAnnouncement(false)} style={styles.announcementClose}>
-                <X size={16} color={COLORS.white} />
-              </Pressable>
+          <View style={styles.announcementBar}>
+            <View style={styles.announcementCopy}>
+              <Megaphone size={18} color={COLORS.white} />
+              <Text style={styles.announcementText}>
+                Sales sync is live: follow-ups, attendance, and notification logs refresh on pull.
+              </Text>
             </View>
-          ) : null}
+          </View>
 
           <View style={styles.pageHeader}>
             <View style={styles.pageHeaderCopy}>
               <Text style={styles.pageTitle}>{displayName}</Text>
               <Text style={styles.pageSubtitle}>Here&apos;s your performance for today.</Text>
-            </View>
-
-            <View style={styles.headerActions}>
-              <MonthTargetCard
-                visits={monthTarget.visits}
-                enquiries={monthTarget.enquiries}
-                jobs={monthTarget.jobs}
-              />
-              <View style={styles.headerButtonStack}>
-                <Pressable
-                  onPress={() => {
-                    router.push('/(tabs)/attendance');
-                  }}
-                  style={({ pressed }) => [styles.headerButton, styles.headerButtonSecondary, pressed && styles.headerButtonPressed]}
-                >
-                  <CalendarClock size={16} color={COLORS.textMuted} />
-                  <Text style={styles.headerButtonSecondaryText}>This Week</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    router.push('/(tabs)/followups');
-                  }}
-                  style={({ pressed }) => [styles.headerButton, styles.headerButtonPrimary, pressed && styles.headerButtonPressed]}
-                >
-                  <Download size={16} color={COLORS.white} />
-                  <Text style={styles.headerButtonPrimaryText}>Export Report</Text>
-                </Pressable>
-              </View>
             </View>
           </View>
 
@@ -666,6 +570,7 @@ export default function DashboardScreen() {
               subtitle={`${metrics.pendingFollowups} open`}
               accent={COLORS.primary}
               icon={<CalendarClock size={22} color={COLORS.primary} />}
+              onPress={() => router.push('/(tabs)/followups')}
             />
             <MetricTile
               title="Visits"
@@ -673,6 +578,7 @@ export default function DashboardScreen() {
               subtitle="this month"
               accent={COLORS.warning}
               icon={<MapPinned size={22} color={COLORS.warning} />}
+              onPress={() => router.push('/(tabs)/attendance')}
             />
             <MetricTile
               title="Enquiries"
@@ -680,16 +586,17 @@ export default function DashboardScreen() {
               subtitle="this month"
               accent={COLORS.success}
               icon={<FileText size={22} color={COLORS.success} />}
+              onPress={() => router.push('/(tabs)/enquiries')}
             />
             <CheckInTile attendance={todayAttendance} attendanceRow={todayAttendanceRow} checkedInToday={metrics.checkedInToday} />
           </ScrollView>
 
-          <ChartSection series={weeklySeries} />
+          <ChartSection series={weeklySeries} showDetailedAnalytics={ENABLE_DETAILED_ANALYTICS} />
 
           <View style={styles.bottomGrid}>
             <DashboardSection
-              title="Upcoming Follow-ups"
-              subtitle="Ordered by scheduled time from sales_followups."
+              title="Follow-ups"
+              subtitle="View your upcoming follow-ups."
               actionLabel="Schedule"
               onAction={() => router.push('/(tabs)/followups')}
             >
@@ -718,21 +625,21 @@ export default function DashboardScreen() {
             </DashboardSection>
 
             <DashboardSection
-              title="Recent Activity"
-              subtitle="A live feed stitched from attendance and notifications."
+              title="Alerts"
+              subtitle="Latest alerts for your account."
               actionLabel="View All"
-              onAction={() => router.push('/(tabs)/attendance')}
+              onAction={() => router.push('/(tabs)/alerts')}
             >
-              {activityItems.length === 0 ? (
+              {alertItems.length === 0 ? (
                 <EmptyState
                   icon={<Users size={28} color={COLORS.textLight} />}
-                  title="No activity yet"
-                  subtitle="New attendance or notification entries will appear here."
+                  title="No alerts yet"
+                  subtitle="New alerts will appear here as they come in."
                 />
               ) : (
                 <View style={styles.timeline}>
-                  {activityItems.map((item) => (
-                    <ActivityItem
+                  {alertItems.map((item) => (
+                    <AlertItem
                       key={item.key}
                       icon={item.icon}
                       title={item.title}
@@ -740,38 +647,6 @@ export default function DashboardScreen() {
                       detail={item.detail}
                       accent={item.accent}
                     />
-                  ))}
-                </View>
-              )}
-            </DashboardSection>
-
-            <DashboardSection title="Lead Status Distribution" subtitle="A quick distribution of the current working set.">
-              {statusEntries.length === 0 ? (
-                <EmptyState
-                  icon={<ShieldCheck size={28} color={COLORS.textLight} />}
-                  title="No status data"
-                  subtitle="Status buckets will appear once follow-ups are loaded."
-                />
-              ) : (
-                <View style={styles.breakdownStack}>
-                  {statusEntries.map((entry) => (
-                    <View key={entry.label} style={styles.breakdownItem}>
-                      <View style={styles.breakdownHead}>
-                        <Text style={styles.breakdownLabel}>{entry.label}</Text>
-                        <Text style={styles.breakdownValue}>{entry.count}</Text>
-                      </View>
-                      <View style={styles.breakdownTrack}>
-                        <View
-                          style={[
-                            styles.breakdownFill,
-                            {
-                              width: `${Math.max(8, Math.round((entry.count / highestStatusCount) * 100))}%`,
-                              backgroundColor: toneColor(entry.tone),
-                            },
-                          ]}
-                        />
-                      </View>
-                    </View>
                   ))}
                 </View>
               )}
@@ -872,96 +747,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: COLORS.textMuted,
   },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    flexWrap: 'wrap',
-  },
   headerButtonStack: {
     flexDirection: 'column',
     gap: 10,
-  },
-  monthCard: {
-    width: 420,
-    minWidth: 420,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    padding: 16,
-    gap: 12,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.05,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 1,
-  },
-  monthCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  monthCardTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: COLORS.text,
-  },
-  monthCardSubtitle: {
-    marginTop: 2,
-    fontSize: 12,
-    color: COLORS.text,
-  },
-  monthCardChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: COLORS.primaryLight,
-  },
-  monthCardChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.primary,
-  },
-  monthCardRows: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  monthCardRow: {
-    flex: 1,
-    minWidth: 0,
-    gap: 6,
-  },
-  monthCardRowHead: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: 2,
-  },
-  monthCardRowLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.text,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  monthCardRowValue: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: COLORS.text,
-  },
-  monthCardTrack: {
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: COLORS.gray100,
-    overflow: 'hidden',
-  },
-  monthCardFill: {
-    height: '100%',
-    borderRadius: 999,
   },
   headerButton: {
     minHeight: 40,
@@ -1024,6 +812,15 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 1,
+  },
+  metricCardHovered: {
+    borderColor: COLORS.primary,
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+  },
+  metricCardPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.99 }],
   },
   metricIconWrap: {
     width: 52,
