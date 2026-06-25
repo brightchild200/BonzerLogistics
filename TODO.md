@@ -7,9 +7,9 @@
 - admin and sales manager ko sari enquiries dikhengi irrespective of salesperon along with the name of salesperon --done
 - admin and sales manager ko sare visits dikhenge of all salespersns --done
 - dashboard mein right side mein attendance dikhao --done
-- visits mein location access mat dikhao (for sales_person)  
-- remove qoutation from salesperosn enquiry 
-- register page pe sales manager bhi dalo 
+- visits mein location access mat dikhao (for sales_person)  and calendar view , sab pe restrictions ki yeh format mein hi chahiye 
+- remove qoutation from salesperosn enquiry --done
+- register page pe sales manager bhi dalo --done
 - apply on email many roles 
 - admin and sales_manager target de sakte hai salesperson ko about no. of enquires and monthly sales , also visits 
 - salesperosn and sales_manager cna also trakcing the jobs but cannot upadte it ( view mode only) (future)
