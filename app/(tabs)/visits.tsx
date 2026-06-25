@@ -560,6 +560,24 @@ function LogVisitModal({
 
       console.log('[visits] inserting sales_customer_visits payload:', payload);
 
+      // Extra: runtime diagnostics to understand why “visit not stored”
+      const fallbackDebug = {
+        time: new Date().toISOString(),
+        platform: Platform.OS,
+        spId,
+        hasGPS: { lat: gps.latitude, lng: gps.longitude, accuracy: gps.accuracy },
+        photoSelected: !!photoUri,
+        payloadKeys: Object.keys(payload),
+        payloadSample: {
+          customer_id: (payload as any).customer_id,
+          sales_person_id: (payload as any).sales_person_id,
+          status: (payload as any).status,
+          visit_start: (payload as any).visit_start,
+        },
+      };
+
+      console.log('[visits][fallback-debug] before insert', fallbackDebug);
+
       // Bypass strict Supabase typings (schema.ts is out-of-sync with real DB)
       const insertedRes: any = await (supabase as any)
         .from('sales_customer_visits' as any)
@@ -569,9 +587,21 @@ function LogVisitModal({
 
       const inserted = insertedRes?.data;
       const insertError = insertedRes?.error;
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('[visits][fallback-debug] insert failed', {
+          error: {
+            message: insertError?.message,
+            code: insertError?.code,
+            details: insertError?.details,
+            hint: insertError?.hint,
+          },
+          ...fallbackDebug,
+        });
+        throw insertError;
+      }
 
       console.log('[visits] DB insert success, id:', inserted?.id);
+
 
       // Upload photo if selected
       if (photoUri && spId && inserted?.id) {
