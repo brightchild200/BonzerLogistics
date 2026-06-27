@@ -169,6 +169,41 @@ Overall: Hybrid RBAC, but security scalability depends heavily on completing RLS
 
 
 
+
+✅ Global Masters (USING (true))
+
+In tables ko sab authenticated users dekh sakte hain:
+
+customer_master
+consignee_master
+vendor_master
+mode_master
+commodity_master
+unit_master
+currency_master
+port_master
+country_master
+
+Ye sab master data hai.
+
+
+✅ Mode
+✅ POL Country
+✅ POL
+✅ POD Country  
+✅ POD
+⬜ Customer migration to SearchModal
+⬜ Shipper
+⬜ Consignee
+⬜ Validation
+⬜ Save
+⬜ Edit
+⬜ View
+⬜ UI Polish
+
+
+
+
 I’m checking the legacy schema for the full sales/activity surface now, then I’ll summarize the concrete gaps relative to your current shared schema and UI without hand-waving.
 
 Searched for regex `activity|tracking|followup|attendance|sales_person|notification_logs|reminder` (`**/existing_schema`), 90 results

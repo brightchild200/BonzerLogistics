@@ -92,6 +92,7 @@ export const COLORS = {
   gray700: '#334155',
   gray800: '#1e293b',
   gray900: '#0f172a',
+  black: '#000104'
 };
 
 

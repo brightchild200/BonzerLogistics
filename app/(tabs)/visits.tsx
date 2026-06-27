@@ -1,6 +1,6 @@
 /**
  * visits.tsx
- * Customer Visits screen — matches the Logistics CRM HTML design (code.html)
+ * Customer Visits screen — premium enterprise UI (Linear / Stripe / Vercel inspired)
  * Supports: Expo (iOS / Android) + Web (react-native-web)
  *
  * Dependencies already in the project:
@@ -11,7 +11,7 @@
  * Folder structure : customer-visit-photos/salesperson_{id}/{yyyy}/{mm}/visit_{visitId}_{epoch}.jpg
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -37,6 +37,7 @@ import {
   Filter,
   MapPin,
   Navigation,
+  Phone,
   Plus,
   Search,
   TrendingDown,
@@ -48,40 +49,81 @@ import { useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
-import { COLORS } from '@/lib/types';
 import { EmptyState } from '@/components/EmptyState';
-import { StatusBadge } from '@/components/Badge';
 import { resolveSalespersonSession } from '@/lib/salesperson-session';
 import { hasRole } from '@/lib/permissions';
 
-// ─── colour tokens (mirrored from the HTML design system) ────────────────────
+// ─── design tokens — premium enterprise palette ──────────────────────────────
+// Soft neutral slate background, white surfaces, blue/slate primary,
+// emerald success, amber warning, red reserved for critical/destructive only.
 const C = {
-  primary: '#0052a1',
-  primaryContainer: '#206bc4',
-  primaryLight: '#d6e3ff',
-  primaryMid: '#cfe5ff',
-  onPrimary: '#ffffff',
-  secondary: '#00629d',
-  bg: '#f7f9fc',
-  surface: '#f7f9fc',
-  surfaceLowest: '#ffffff',
-  surfaceLow: '#f2f4f7',
-  surfaceContainer: '#eceef1',
+  // Brand
+  primary: '#2563EB',
+  primaryHover: '#1D4ED8',
+  primarySoft: '#EFF6FF',
+  primarySoftBorder: '#BFDBFE',
+  onPrimary: '#FFFFFF',
+
+  // Secondary accent (used for "in progress" / informational states)
+  accent: '#4F46E5',
+  accentSoft: '#EEF2FF',
+  accentSoftBorder: '#C7D2FE',
+
+  // Neutrals
+  bg: '#F8FAFC',
+  surface: '#FFFFFF',
+  surfaceSubtle: '#F1F5F9',
+  surfaceMuted: '#F8FAFC',
   border: '#E2E8F0',
-  borderMid: '#c2c6d4',
-  text: '#191c1e',
+  borderStrong: '#CBD5E1',
+
+  text: '#0F172A',
   textMuted: '#475569',
-  textLight: '#727783',
-  won: '#10B981',
-  wonBg: '#f0fdf4',
-  wonBorder: '#d1fae5',
-  followup: '#F59E0B',
-  followupBg: '#fffbeb',
-  followupBorder: '#fef3c7',
-  lost: '#EF4444',
-  new: '#206BC4',
-  contacted: '#6366F1',
+  textLight: '#94A3B8',
+
+  // Semantic
+  success: '#059669',
+  successSoft: '#ECFDF5',
+  successSoftBorder: '#A7F3D0',
+
+  warning: '#D97706',
+  warningSoft: '#FFFBEB',
+  warningSoftBorder: '#FDE68A',
+
+  danger: '#DC2626',
+  dangerSoft: '#FEF2F2',
+  dangerSoftBorder: '#FECACA',
+
+  // legacy aliases kept so any external references don't break
+  surfaceLowest: '#FFFFFF',
+  surfaceLow: '#F1F5F9',
+  surfaceContainer: '#F1F5F9',
+  borderMid: '#CBD5E1',
+  won: '#059669',
+  wonBg: '#ECFDF5',
+  wonBorder: '#A7F3D0',
+  followup: '#D97706',
+  followupBg: '#FFFBEB',
+  followupBorder: '#FDE68A',
+  lost: '#DC2626',
+  new: '#2563EB',
+  contacted: '#4F46E5',
 };
+
+const SHADOW_SM = IS_WEB_SHADOW('0 1px 2px rgba(15,23,42,0.06)');
+const SHADOW_MD = IS_WEB_SHADOW('0 4px 12px rgba(15,23,42,0.08)');
+
+function IS_WEB_SHADOW(boxShadow: string) {
+  return Platform.OS === 'web'
+    ? { boxShadow }
+    : {
+        elevation: 2,
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 6,
+      };
+}
 
 // ─── types ───────────────────────────────────────────────────────────────────
 interface CustomerOption {
@@ -91,8 +133,6 @@ interface CustomerOption {
 }
 
 type VisitStatus = 'planned' | 'in_progress' | 'completed' | 'cancelled';
-
-type VisitType = 'customer' | string;
 
 interface VisitRow {
   id: number;
@@ -139,7 +179,7 @@ const IS_WEB = Platform.OS === 'web';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 function initials(name: string): string {
-  return name
+  return (name || '?')
     .split(' ')
     .slice(0, 2)
     .map((w) => w[0])
@@ -149,11 +189,11 @@ function initials(name: string): string {
 
 function avatarColor(name: string): string {
   const palette = [
-    { bg: '#dbeafe', text: C.primary },
-    { bg: '#fef3c7', text: '#92400e' },
-    { bg: '#ede9fe', text: '#5b21b6' },
-    { bg: '#d1fae5', text: '#065f46' },
-    { bg: '#fee2e2', text: '#991b1b' },
+    { bg: '#DBEAFE', text: '#1D4ED8' },
+    { bg: '#FEF3C7', text: '#92400E' },
+    { bg: '#EDE9FE', text: '#5B21B6' },
+    { bg: '#D1FAE5', text: '#065F46' },
+    { bg: '#FCE7F3', text: '#9D174D' },
   ];
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % palette.length;
@@ -161,7 +201,7 @@ function avatarColor(name: string): string {
 }
 
 function avatarTextColor(name: string): string {
-  const palette = [C.primary, '#92400e', '#5b21b6', '#065f46', '#991b1b'];
+  const palette = ['#1D4ED8', '#92400E', '#5B21B6', '#065F46', '#9D174D'];
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % palette.length;
   return palette[h % palette.length];
@@ -194,15 +234,15 @@ function toIsoDate(display: string): string {
 function statusStyle(status: string) {
   switch (status?.toLowerCase()) {
     case 'completed':
-      return { bg: C.wonBg, text: C.won, border: C.wonBorder, label: 'Completed' };
+      return { bg: C.successSoft, text: C.success, border: C.successSoftBorder, dot: C.success, label: 'Completed' };
     case 'in_progress':
-      return { bg: '#eff6ff', text: C.new, border: '#bfdbfe', label: 'In Progress' };
+      return { bg: C.accentSoft, text: C.accent, border: C.accentSoftBorder, dot: C.accent, label: 'In Progress' };
     case 'planned':
-      return { bg: C.followupBg, text: C.followup, border: C.followupBorder, label: 'Planned' };
+      return { bg: C.warningSoft, text: C.warning, border: C.warningSoftBorder, dot: C.warning, label: 'Planned' };
     case 'cancelled':
-      return { bg: '#fef2f2', text: C.lost, border: '#fecaca', label: 'Cancelled' };
+      return { bg: C.dangerSoft, text: C.danger, border: C.dangerSoftBorder, dot: C.danger, label: 'Cancelled' };
     default:
-      return { bg: C.surfaceLow, text: C.textMuted, border: C.border, label: status };
+      return { bg: C.surfaceSubtle, text: C.textMuted, border: C.border, dot: C.textLight, label: status };
   }
 }
 
@@ -253,15 +293,15 @@ function StatCard({
       <View style={s.statRow}>
         <Text style={s.statValue}>{value}</Text>
         {trend === 'up' && (
-          <View style={s.trendChip}>
-            <TrendingUp size={12} color={C.won} />
-            <Text style={[s.trendText, { color: C.won }]}>{trendLabel}</Text>
+          <View style={[s.trendChip, { backgroundColor: C.successSoft }]}>
+            <TrendingUp size={12} color={C.success} />
+            <Text style={[s.trendText, { color: C.success }]}>{trendLabel}</Text>
           </View>
         )}
         {trend === 'down' && (
-          <View style={s.trendChip}>
-            <TrendingDown size={12} color={C.lost} />
-            <Text style={[s.trendText, { color: C.lost }]}>{trendLabel}</Text>
+          <View style={[s.trendChip, { backgroundColor: C.dangerSoft }]}>
+            <TrendingDown size={12} color={C.danger} />
+            <Text style={[s.trendText, { color: C.danger }]}>{trendLabel}</Text>
           </View>
         )}
         {trend === 'stable' && <Text style={s.trendStable}>{trendLabel}</Text>}
@@ -270,107 +310,81 @@ function StatCard({
   );
 }
 
-function VisitCard({ visit, onView }: { visit: VisitRow; onView: (v: VisitRow) => void }) {
-  const name = visit.customer_name ?? 'Unknown Customer';
-  const ss = statusStyle(visit.status);
-  const { date, time } = formatDate(visit.visit_start);
-  const salespersonLabel = visit.salesperson_name ? `Salesperson: ${visit.salesperson_name}` : null;
+// Fixed column widths so the table can scroll horizontally as one thin line
+// on narrow (mobile) viewports while staying perfectly aligned with its header.
+const COL = {
+  customer: 220,
+  contact: 170,
+  mobile: 150,
+  datetime: 160,
+  status: 120,
+  actions: 140,
+};
+const TABLE_MIN_WIDTH =
+  COL.customer + COL.contact + COL.mobile + COL.datetime + COL.status + COL.actions;
 
+function VisitTableHeader() {
   return (
-    <View style={s.visitCard}>
-      {/* Header row */}
-      <View style={s.vcHeader}>
-        <View style={[s.avatar, { backgroundColor: avatarColor(name) }]}>
-          <Text style={[s.avatarText, { color: avatarTextColor(name) }]}>{initials(name)}</Text>
-        </View>
-        <View style={s.vcInfo}>
-          <Text style={s.vcCustomer} numberOfLines={1}>
-            {name}
-          </Text>
-          {visit.contact_name ? (
-            <Text style={s.vcContact}>{visit.contact_name}</Text>
-          ) : null}
-          {salespersonLabel ? <Text style={s.vcContact}>{salespersonLabel}</Text> : null}
-        </View>
-        <View style={[s.statusBadge, { backgroundColor: ss.bg, borderColor: ss.border }]}>
-          <Text style={[s.statusText, { color: ss.text }]}>{ss.label}</Text>
-        </View>
-      </View>
-
-      {/* Date + Location */}
-      <View style={s.vcMeta}>
-        <View style={s.vcMetaItem}>
-          <MapPin size={13} color={C.textLight} style={{ marginRight: 4 }} />
-          <Text style={s.vcMetaText} numberOfLines={1}>
-            {visit.location_address ?? visit.location_name ?? `${visit.latitude}, ${visit.longitude}`}
-          </Text>
-        </View>
-        <Text style={s.vcDate}>
-          {date} · {time}
-        </Text>
-      </View>
-
-      {/* Remarks preview */}
-      {visit.remarks ? (
-        <Text style={s.vcRemarks} numberOfLines={2}>
-          {visit.remarks}
-        </Text>
-      ) : null}
-
-      {/* Action */}
-      <TouchableOpacity style={s.vcAction} onPress={() => onView(visit)}>
-        <FileText size={14} color={C.primary} />
-        <Text style={s.vcActionText}>View Summary</Text>
-      </TouchableOpacity>
+    <View style={[s.tableHeader, { width: TABLE_MIN_WIDTH }]}>
+      <Text style={[s.tableHeaderCell, { width: COL.customer }]}>Customer</Text>
+      <Text style={[s.tableHeaderCell, { width: COL.contact }]}>Contact Person</Text>
+      <Text style={[s.tableHeaderCell, { width: COL.mobile }]}>Mobile</Text>
+      <Text style={[s.tableHeaderCell, { width: COL.datetime }]}>Date &amp; Time</Text>
+      <Text style={[s.tableHeaderCell, { width: COL.status }]}>Status</Text>
+      <Text style={[s.tableHeaderCell, { width: COL.actions, textAlign: 'right' }]}>Actions</Text>
     </View>
   );
 }
 
-// For web: table row layout
-function VisitTableRow({ visit, onView }: { visit: VisitRow; onView: (v: VisitRow) => void }) {
-  const name = visit.customer_name ?? 'Unknown';
+// Single thin-line visit row — identical shape on web and mobile, the only
+// difference is the surrounding ScrollView scrolls horizontally on mobile.
+function VisitRowItem({ visit, onView }: { visit: VisitRow; onView: (v: VisitRow) => void }) {
+  const name = visit.customer_name ?? 'Unknown Customer';
+  const contact = visit.contact_name ?? '—';
+  const mobile = visit.contact_person_mobile ?? '—';
   const ss = statusStyle(visit.status);
   const { date, time } = formatDate(visit.visit_start);
+
   return (
-    <View style={s.tableRow}>
+    <View style={[s.tableRow, { width: TABLE_MIN_WIDTH }]}>
       {/* Customer */}
-      <View style={[s.tableCell, { flex: 2.5 }]}>
+      <View style={[s.tableCell, { width: COL.customer }]}>
         <View style={[s.avatar, { backgroundColor: avatarColor(name) }]}>
           <Text style={[s.avatarText, { color: avatarTextColor(name) }]}>{initials(name)}</Text>
         </View>
-        <View style={{ marginLeft: 10, flex: 1 }}>
-          <Text style={s.tableCustomer} numberOfLines={1}>{name}</Text>
-          {visit.contact_name ? <Text style={s.tableContact}>{visit.contact_name}</Text> : null}
-        </View>
+        <Text style={s.tableCustomer} numberOfLines={1}>{name}</Text>
       </View>
-      {/* Date */}
-      <View style={[s.tableCell, { flex: 1.5 }]}>
-        <View>
-          <Text style={s.tableDate}>{date}</Text>
-          <Text style={s.tableTime}>{time}</Text>
-        </View>
+
+      {/* Contact person */}
+      <View style={[s.tableCell, { width: COL.contact }]}>
+        <Text style={s.tableMuted} numberOfLines={1}>{contact}</Text>
       </View>
-      {/* Location */}
-      <View style={[s.tableCell, { flex: 3 }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={s.tableAddr} numberOfLines={1}>
-            {visit.location_address ?? visit.location_name ?? '—'}
-          </Text>
-          <Text style={s.tableCoords}>
-            {visit.latitude.toFixed(4)}, {visit.longitude.toFixed(4)}
-          </Text>
-        </View>
+
+      {/* Mobile */}
+      <View style={[s.tableCell, { width: COL.mobile }]}>
+        <Phone size={11} color={C.textLight} style={{ marginRight: 5 }} />
+        <Text style={s.tableMuted} numberOfLines={1}>{mobile}</Text>
       </View>
+
+      {/* Date & Time */}
+      <View style={[s.tableCell, { width: COL.datetime, flexDirection: 'column', alignItems: 'flex-start' }]}>
+        <Text style={s.tableDate}>{date}</Text>
+        <Text style={s.tableTime}>{time}</Text>
+      </View>
+
       {/* Status */}
-      <View style={[s.tableCell, { flex: 1.2 }]}>
+      <View style={[s.tableCell, { width: COL.status }]}>
         <View style={[s.statusBadge, { backgroundColor: ss.bg, borderColor: ss.border }]}>
+          <View style={[s.statusDot, { backgroundColor: ss.dot }]} />
           <Text style={[s.statusText, { color: ss.text }]}>{ss.label}</Text>
         </View>
       </View>
-      {/* Action */}
-      <View style={[s.tableCell, { flex: 1, justifyContent: 'flex-end' }]}>
-        <TouchableOpacity style={s.tableAction} onPress={() => onView(visit)}>
-          <Text style={s.tableActionText}>View Summary</Text>
+
+      {/* Actions */}
+      <View style={[s.tableCell, { width: COL.actions, justifyContent: 'flex-end' }]}>
+        <TouchableOpacity style={s.tableAction} onPress={() => onView(visit)} activeOpacity={0.7}>
+          <FileText size={13} color={C.primary} />
+          <Text style={s.tableActionText}>Summary</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -380,9 +394,9 @@ function VisitTableRow({ visit, onView }: { visit: VisitRow; onView: (v: VisitRo
 // ─── Label with required indicator ───────────────────────────────────────────
 function FieldLabel({ text, required }: { text: string; required?: boolean }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
       <Text style={ms.label}>{text}</Text>
-      {required && <Text style={{ fontSize: 10, color: C.lost, marginLeft: 2, fontWeight: '700' }}>*</Text>}
+      {required && <Text style={{ fontSize: 11, color: C.danger, marginLeft: 3, fontWeight: '700' }}>*</Text>}
     </View>
   );
 }
@@ -556,6 +570,7 @@ function LogVisitModal({
         latitude: gps.latitude,
         longitude: gps.longitude,
         accuracy_meters: gps.accuracy,
+
         location_address: gps.address,
         // Remarks
         remarks: remarks.trim() || null,
@@ -578,7 +593,7 @@ function LogVisitModal({
       console.log('[visits] salesperson id:', spId);
       console.log('[visits] payload:', JSON.stringify(payload, null, 2));
 
-      // Extra: runtime diagnostics to understand why “visit not stored”
+      // Extra: runtime diagnostics to understand why "visit not stored"
       const fallbackDebug = {
         time: new Date().toISOString(),
         platform: Platform.OS,
@@ -596,42 +611,63 @@ function LogVisitModal({
 
       console.log('[visits][fallback-debug] before insert', fallbackDebug);
 
-      // Bypass strict Supabase typings (schema.ts is out-of-sync with real DB)
-      const insertedRes: any = await (supabase as any)
-        .from('sales_customer_visits' as any)
-        .insert(payload as any)
-        .select('id')
-        .single();
+      // Use RPC so visit + follow-up are created consistently
+      // Function: public.create_customer_visit_with_followup (see existing_schema)
+      const { data: rpcData, error: rpcError } = await supabase.rpc(
+        'create_customer_visit_with_followup',
+        {
+          p_sales_person_id: (payload as any).sales_person_id,
+          p_user_id: session.appUser?.id ?? null,
+          p_customer_id: (payload as any).customer_id ?? null,
+          p_job_id: (payload as any).job_id ?? null,
+          p_visit_type: (payload as any).visit_type ?? 'customer',
+          p_visit_start: (payload as any).visit_start,
+          p_latitude: (payload as any).latitude,
+          p_longitude: (payload as any).longitude,
+          p_accuracy_meters: (payload as any).accuracy_meters,
+          p_location_name: (payload as any).location_name ?? null,
+          p_location_address: (payload as any).location_address,
+          p_remarks: (payload as any).remarks,
+          p_customer_name: (payload as any).customer_name,
+          p_contact_person_name: (payload as any).contact_person_name,
+          p_contact_person_mobile: (payload as any).contact_person_mobile,
+          p_contact_person_email: (payload as any).contact_person_email,
+          p_contact_person_designation: (payload as any).contact_person_designation,
+          p_next_followup_date: (payload as any).next_followup_date ?? null,
+          p_next_followup_time: (payload as any).next_followup_time ?? null,
+        },
+      );
 
-      const inserted = insertedRes?.data;
-      const insertError = insertedRes?.error;
-      if (insertError) {
-        console.error('[visits][fallback-debug] insert failed', {
+      if (rpcError) {
+        console.error('[visits][fallback-debug] rpc failed', {
           error: {
-            message: insertError?.message,
-            code: insertError?.code,
-            details: insertError?.details,
-            hint: insertError?.hint,
+            message: rpcError?.message,
+            code: rpcError?.code,
+            details: (rpcError as any)?.details,
+            hint: (rpcError as any)?.hint,
           },
           ...fallbackDebug,
+          rpcData,
         });
-        throw insertError;
+        throw rpcError;
       }
 
-      console.log('[visits] ── INSERT SUCCESS ─────────────────────');
-      console.log('[visits] inserted id:', inserted?.id);
-      console.log('[visits] full response:', JSON.stringify(inserted));
+      const inserted = rpcData as any;
+      console.log('[visits] ── RPC SUCCESS ─────────────────────');
+      console.log('[visits] visit_id:', inserted?.visit_id);
+      console.log('[visits] followup_id:', inserted?.followup_id);
 
+      const visitId = inserted?.visit_id as number | undefined;
 
       // Upload photo if selected
-      if (photoUri && spId && inserted?.id) {
-        console.log('[visits] uploading photo for visit', inserted.id);
-        const path = await uploadVisitPhoto(spId, inserted.id, photoUri);
+      if (photoUri && spId && visitId) {
+        console.log('[visits] uploading photo for visit', visitId);
+        const path = await uploadVisitPhoto(spId, visitId, photoUri);
         if (path) {
           await (supabase as any)
             .from('sales_customer_visits' as any)
             .update({ photo_path: path })
-            .eq('id', inserted.id);
+            .eq('id', visitId);
           console.log('[visits] photo uploaded:', path);
         } else {
           console.warn('[visits] photo upload failed, visit saved without photo');
@@ -658,7 +694,7 @@ function LogVisitModal({
 
   const inputStyle = (field: string) => [
     ms.textInput,
-    errors[field] ? { borderColor: C.lost } : {},
+    errors[field] ? { borderColor: C.danger } : {},
   ];
 
   return (
@@ -699,10 +735,10 @@ function LogVisitModal({
 
             {/* Existing Customer picker */}
             {!isNewProspect && (
-              <View style={{ marginTop: 12 }}>
+              <View style={{ marginTop: 14 }}>
                 <FieldLabel text="SELECT CUSTOMER" required />
                 <TouchableOpacity
-                  style={[ms.selectBox, errors.customer ? { borderColor: C.lost } : {}]}
+                  style={[ms.selectBox, errors.customer ? { borderColor: C.danger } : {}]}
                   onPress={() => setShowCustomerPicker(true)}
                 >
                   <Text style={selectedCustomer ? ms.selectVal : ms.selectPlaceholder}>
@@ -716,7 +752,7 @@ function LogVisitModal({
 
             {/* New Prospect name */}
             {isNewProspect && (
-              <View style={{ marginTop: 12 }}>
+              <View style={{ marginTop: 14 }}>
                 <FieldLabel text="PROSPECT / COMPANY NAME" required />
                 <TextInput
                   style={inputStyle('newCustomerName')}
@@ -744,7 +780,7 @@ function LogVisitModal({
             />
             {errors.contactName ? <Text style={ms.errText}>{errors.contactName}</Text> : null}
 
-            <View style={{ marginTop: 14 }}>
+            <View style={{ marginTop: 16 }}>
               <FieldLabel text="MOBILE / CONTACT" required />
               <TextInput
                 style={inputStyle('contactMobile')}
@@ -757,7 +793,7 @@ function LogVisitModal({
               {errors.contactMobile ? <Text style={ms.errText}>{errors.contactMobile}</Text> : null}
             </View>
 
-            <View style={{ marginTop: 14 }}>
+            <View style={{ marginTop: 16 }}>
               <FieldLabel text="EMAIL (OPTIONAL)" />
               <TextInput
                 style={inputStyle('contactEmail')}
@@ -771,7 +807,7 @@ function LogVisitModal({
               {errors.contactEmail ? <Text style={ms.errText}>{errors.contactEmail}</Text> : null}
             </View>
 
-            <View style={{ marginTop: 14 }}>
+            <View style={{ marginTop: 16 }}>
               <FieldLabel text="DESIGNATION (OPTIONAL)" />
               <TextInput
                 style={inputStyle('contactDesignation')}
@@ -787,7 +823,7 @@ function LogVisitModal({
             <View style={ms.sectionDivider}>
               <Text style={ms.sectionTitle}>Next Follow-up</Text>
             </View>
-            <Text style={{ fontSize: 12, color: C.textLight, marginBottom: 12, marginTop: -4 }}>
+            <Text style={{ fontSize: 12, color: C.textLight, marginBottom: 14, marginTop: -6 }}>
               Optional: schedule a follow-up reminder for this visit
             </Text>
 
@@ -799,12 +835,12 @@ function LogVisitModal({
                 onChange={(e: any) => setNextFollowupDate(e.target.value)}
                 style={{
                   width: '100%',
-                  border: `1px solid ${errors.nextFollowupDate ? C.lost : C.border}`,
+                  border: `1px solid ${errors.nextFollowupDate ? C.danger : C.border}`,
                   borderRadius: 10,
                   padding: '12px 14px',
                   fontSize: 14,
                   color: nextFollowupDate ? C.text : C.textLight,
-                  backgroundColor: C.surfaceLowest,
+                  backgroundColor: C.surface,
                   outline: 'none',
                   boxSizing: 'border-box',
                 } as any}
@@ -829,13 +865,13 @@ function LogVisitModal({
               />
             )}
             {nextFollowupDate ? (
-              <Text style={{ fontSize: 11, color: C.textLight, marginTop: 4 }}>
+              <Text style={{ fontSize: 11, color: C.textLight, marginTop: 5 }}>
                 Selected: {toDisplayDate(nextFollowupDate)}
               </Text>
             ) : null}
             {errors.nextFollowupDate ? <Text style={ms.errText}>{errors.nextFollowupDate}</Text> : null}
 
-            <View style={{ marginTop: 14 }}>
+            <View style={{ marginTop: 16 }}>
               <FieldLabel text="FOLLOW-UP TIME (OPTIONAL)" />
               <TextInput
                 style={inputStyle('nextFollowupTime')}
@@ -849,7 +885,7 @@ function LogVisitModal({
             </View>
 
             {/* ── Remarks ── */}
-            <View style={[ms.sectionDivider, { marginBottom: 8 }]}>
+            <View style={[ms.sectionDivider, { marginBottom: 10 }]}>
               <Text style={ms.sectionTitle}>Visit Remarks</Text>
             </View>
             <TextInput
@@ -864,17 +900,16 @@ function LogVisitModal({
             />
 
             {/* ── Location Address ── */}
-            {/* Location Capture (silent): keep capturing GPS internally, but don't show “acquiring” UI or address to user. */}
+            {/* Location Capture (silent): keep capturing GPS internally, but don't show "acquiring" UI or address to user. */}
             <View style={{ height: 0, overflow: 'hidden' }}>
               {gps.loading ? (
                 <ActivityIndicator size="small" color={C.primary} />
               ) : null}
             </View>
 
-
             {/* ── Photo Upload ── */}
             <TouchableOpacity style={ms.photoBox} onPress={pickPhoto}>
-              <Camera size={28} color={photoUri ? C.primary : C.textLight} />
+              <Camera size={26} color={photoUri ? C.primary : C.textLight} />
               <Text style={ms.photoText}>
                 {photoUri ? '✓ Photo selected — tap to change' : 'Choose photo (site evidence)'}
               </Text>
@@ -963,7 +998,7 @@ function LogVisitModal({
                       {initials(item.name)}
                     </Text>
                   </View>
-                  <View style={{ marginLeft: 10 }}>
+                  <View style={{ marginLeft: 12 }}>
                     <Text style={cp.itemName}>{item.name}</Text>
                     {item.contact ? <Text style={cp.itemContact}>{item.contact}</Text> : null}
                   </View>
@@ -984,6 +1019,7 @@ function LogVisitModal({
 function VisitDetailModal({ visit, onClose }: { visit: VisitRow | null; onClose: () => void }) {
   if (!visit) return null;
   const name = visit.customer_name ?? 'Unknown Customer';
+  const contact = visit.contact_name ?? null;
   const ss = statusStyle(visit.status);
   const { date, time } = formatDate(visit.visit_start);
 
@@ -993,7 +1029,7 @@ function VisitDetailModal({ visit, onClose }: { visit: VisitRow | null; onClose:
         <View style={[ms.sheet, { paddingTop: 0 }]}>
           <View style={[ms.sheetHeader, { paddingTop: IS_WEB ? 16 : 20 }]}>
             <View style={ms.sheetHeaderLeft}>
-              <View style={[ms.sheetIcon, { backgroundColor: '#eff6ff' }]}>
+              <View style={[ms.sheetIcon, { backgroundColor: C.primarySoft }]}>
                 <FileText size={18} color={C.primary} />
               </View>
               <Text style={ms.sheetTitle}>Visit Summary</Text>
@@ -1005,14 +1041,15 @@ function VisitDetailModal({ visit, onClose }: { visit: VisitRow | null; onClose:
           <ScrollView style={ms.body} showsVerticalScrollIndicator={false}>
             {/* Customer */}
             <View style={vd.customerRow}>
-              <View style={[s.avatar, { width: 48, height: 48, borderRadius: 12, backgroundColor: avatarColor(name) }]}>
+              <View style={[s.avatar, { width: 48, height: 48, borderRadius: 14, backgroundColor: avatarColor(name) }]}>
                 <Text style={[s.avatarText, { color: avatarTextColor(name), fontSize: 16 }]}>{initials(name)}</Text>
               </View>
-              <View style={{ marginLeft: 12, flex: 1 }}>
+              <View style={{ marginLeft: 14, flex: 1 }}>
                 <Text style={vd.custName}>{name}</Text>
-                {visit.contact_name ? <Text style={vd.custContact}>{visit.contact_name}</Text> : null}
+                {contact ? <Text style={vd.custContact}>{contact}</Text> : null}
               </View>
               <View style={[s.statusBadge, { backgroundColor: ss.bg, borderColor: ss.border }]}>
+                <View style={[s.statusDot, { backgroundColor: ss.dot }]} />
                 <Text style={[s.statusText, { color: ss.text }]}>{ss.label}</Text>
               </View>
             </View>
@@ -1022,6 +1059,9 @@ function VisitDetailModal({ visit, onClose }: { visit: VisitRow | null; onClose:
             {/* Detail rows */}
             {[
               { label: 'Date & Time', value: `${date} · ${time}` },
+              visit.contact_person_mobile ? { label: 'Contact Mobile', value: visit.contact_person_mobile } : null,
+              visit.contact_person_email ? { label: 'Contact Email', value: visit.contact_person_email } : null,
+              visit.contact_person_designation ? { label: 'Designation', value: visit.contact_person_designation } : null,
               { label: 'Location', value: visit.location_address ?? visit.location_name ?? '—' },
               { label: 'Coordinates', value: `${visit.latitude.toFixed(6)}, ${visit.longitude.toFixed(6)}` },
               visit.accuracy_meters ? { label: 'GPS Accuracy', value: `±${Math.round(visit.accuracy_meters)}m` } : null,
@@ -1099,12 +1139,19 @@ export default function CustomerVisitsScreen() {
     const from = (pageNum - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
+    // NOTE: sales_customer_visits stores customer_name + contact_person_*
+    // directly on the row (needed for "new prospect" visits where
+    // customer_id is null). These are now selected explicitly and used as
+    // the primary source, with the customer_master join kept only as a
+    // fallback for older rows that predate these columns being populated.
     let query = (supabase as any)
       .from('sales_customer_visits' as any)
       .select(
-        `id, customer_id, visit_start, location_name, location_address,
+        `id, customer_id, customer_name, visit_start, location_name, location_address,
          latitude, longitude, accuracy_meters, remarks, status, outcome, photo_path,
-         sales_person_id`,
+         sales_person_id, next_followup_date, next_followup_time,
+         contact_person_name, contact_person_mobile, contact_person_email,
+         contact_person_designation`,
         { count: 'exact' },
       )
       .order('visit_start', { ascending: false })
@@ -1129,9 +1176,15 @@ export default function CustomerVisitsScreen() {
       salespersonMap = Object.fromEntries((salespersonRows ?? []).map((row) => [row.id, row.name]));
     }
 
-    // customer name map (avoid relying on join correctness)
+    // customer_master fallback map — only used when the visit row itself
+    // is missing customer_name / contact_person_name (older records).
     const customerIds = Array.from(
-      new Set(visitsRaw.map((v) => v.customer_id).filter((id): id is number => typeof id === 'number')),
+      new Set(
+        visitsRaw
+          .filter((v) => !v.customer_name || !v.contact_person_name)
+          .map((v) => v.customer_id)
+          .filter((id): id is number => typeof id === 'number'),
+      ),
     );
     let customerMap: Record<number, { name?: string; contact_person?: string }> = {};
     if (customerIds.length > 0) {
@@ -1148,8 +1201,11 @@ export default function CustomerVisitsScreen() {
       const cm = v.customer_id ? customerMap[v.customer_id] : undefined;
       return {
         ...(v as unknown as VisitRow),
-        customer_name: cm?.name,
-        contact_name: cm?.contact_person,
+        // Prefer the columns stored directly on the visit row (works for
+        // both existing customers and new prospects); fall back to the
+        // customer_master join only when the row itself has no value.
+        customer_name: v.customer_name ?? cm?.name ?? undefined,
+        contact_name: v.contact_person_name ?? cm?.contact_person ?? undefined,
         salesperson_name: v.sales_person_id ? (salespersonMap[Number(v.sales_person_id)] || null) : null,
       };
     });
@@ -1217,7 +1273,7 @@ export default function CustomerVisitsScreen() {
       // Text search across key fields
       const textMatch =
         search.trim() === '' ||
-        [v.customer_name, v.contact_name, v.location_address, v.location_name, v.status, v.remarks]
+        [v.customer_name, v.contact_name, v.contact_person_mobile, v.location_address, v.location_name, v.status, v.remarks]
           .filter(Boolean)
           .join(' ')
           .toLowerCase()
@@ -1255,6 +1311,8 @@ export default function CustomerVisitsScreen() {
     loadVisits(p);
   }
 
+  const hasActiveFilters = !!(filter.status || filter.customerName || filter.dateFrom || filter.dateTo);
+
   // ─── render ─────────────────────────────────────────────────────────────────
   return (
     <View style={s.screen}>
@@ -1264,7 +1322,7 @@ export default function CustomerVisitsScreen() {
           <Text style={s.pageTitle}>Customer Visits</Text>
           <Text style={s.pageSub}>Manage site visits · capture proof · track movements</Text>
         </View>
-        <TouchableOpacity style={s.logBtn} onPress={() => setShowForm(true)}>
+        <TouchableOpacity style={s.logBtn} onPress={() => setShowForm(true)} activeOpacity={0.9}>
           <Plus size={16} color={C.onPrimary} />
           <Text style={s.logBtnText}>Log New Visit</Text>
         </TouchableOpacity>
@@ -1299,22 +1357,10 @@ export default function CustomerVisitsScreen() {
             </TouchableOpacity>
           )}
           <TouchableOpacity
-            style={[
-              s.filterIconBtn,
-              (filter.status || filter.customerName || filter.dateFrom || filter.dateTo)
-                ? s.filterIconBtnActive
-                : {},
-            ]}
+            style={[s.filterIconBtn, hasActiveFilters && s.filterIconBtnActive]}
             onPress={() => setShowFilters((v) => !v)}
           >
-            <Filter
-              size={15}
-              color={
-                filter.status || filter.customerName || filter.dateFrom || filter.dateTo
-                  ? C.onPrimary
-                  : C.textMuted
-              }
-            />
+            <Filter size={15} color={hasActiveFilters ? C.onPrimary : C.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -1356,7 +1402,7 @@ export default function CustomerVisitsScreen() {
             </View>
 
             {/* Customer name */}
-            <Text style={[s.filterLabel, { marginTop: 10 }]}>CUSTOMER NAME</Text>
+            <Text style={[s.filterLabel, { marginTop: 12 }]}>CUSTOMER NAME</Text>
             <View style={s.filterInputRow}>
               <TextInput
                 style={s.filterInput}
@@ -1373,7 +1419,7 @@ export default function CustomerVisitsScreen() {
             </View>
 
             {/* Date range */}
-            <Text style={[s.filterLabel, { marginTop: 10 }]}>DATE RANGE</Text>
+            <Text style={[s.filterLabel, { marginTop: 12 }]}>DATE RANGE</Text>
             <View style={s.filterDateRow}>
               <View style={[s.filterInputRow, { flex: 1 }]}>
                 <TextInput
@@ -1418,41 +1464,31 @@ export default function CustomerVisitsScreen() {
             </View>
           </View>
 
-          {/* Table header (web only) */}
-          {IS_WEB && (
-            <View style={s.tableHeader}>
-              {['Customer & Contact', 'Date & Time', 'Location', 'Status', 'Actions'].map((h, i) => (
-                <Text
-                  key={h}
-                  style={[s.tableHeaderCell, i === 4 && { textAlign: 'right' },
-                    i === 0 ? { flex: 2.5 } : i === 1 ? { flex: 1.5 } : i === 2 ? { flex: 3 } : i === 3 ? { flex: 1.2 } : { flex: 1 }]}
-                >
-                  {h}
-                </Text>
-              ))}
-            </View>
-          )}
-
           {/* Rows */}
           {loading && visits.length === 0 ? (
-            <ActivityIndicator size="large" color={C.primary} style={{ padding: 40 }} />
+            <ActivityIndicator size="large" color={C.primary} style={{ padding: 48 }} />
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={<MapPin size={28} color={C.textLight} />}
               title="No visits found"
               subtitle="Logged customer visits will appear here."
             />
-          ) : IS_WEB ? (
-            filtered.map((v, i) => (
-              <View key={v.id}>
-                <VisitTableRow visit={v} onView={setDetailVisit} />
-                {i < filtered.length - 1 && <View style={{ height: 1, backgroundColor: C.border }} />}
-              </View>
-            ))
           ) : (
-            filtered.map((v) => (
-              <VisitCard key={v.id} visit={v} onView={setDetailVisit} />
-            ))
+            // Single thin-line row, identical on web and mobile — wrapped in a
+            // horizontal ScrollView so it stays one line even on narrow screens.
+            <ScrollView horizontal showsHorizontalScrollIndicator={IS_WEB}>
+              <View>
+                <VisitTableHeader />
+                {filtered.map((v, i) => (
+                  <View key={v.id}>
+                    <VisitRowItem visit={v} onView={setDetailVisit} />
+                    {i < filtered.length - 1 && (
+                      <View style={{ height: 1, backgroundColor: C.border, width: TABLE_MIN_WIDTH }} />
+                    )}
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
           )}
 
           {/* Pagination */}
@@ -1525,106 +1561,108 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: C.surfaceLowest,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    backgroundColor: C.surface,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
-    paddingTop: IS_WEB ? 14 : 52,
-    ...(IS_WEB ? { boxShadow: '0 1px 3px rgba(0,0,0,0.06)' } : {}),
+    paddingTop: IS_WEB ? 16 : 52,
+    ...SHADOW_SM,
   },
-  pageTitle: { fontSize: 22, fontWeight: '800', color: C.text, letterSpacing: -0.4 },
-  pageSub: { fontSize: 12, color: C.textMuted, marginTop: 2 },
+  pageTitle: { fontSize: 22, fontWeight: '700', color: C.text, letterSpacing: -0.4 },
+  pageSub: { fontSize: 13, color: C.textMuted, marginTop: 3 },
   logBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     backgroundColor: C.primary,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 11,
+    borderRadius: 10,
+    ...SHADOW_SM,
   },
-  logBtnText: { fontSize: 13, fontWeight: '700', color: C.onPrimary },
+  logBtnText: { fontSize: 13, fontWeight: '600', color: C.onPrimary },
 
   scroll: { flex: 1 },
-  content: { padding: 16, gap: 12 },
+  content: { padding: 24, gap: 16, maxWidth: IS_WEB ? 1200 : undefined, width: '100%', alignSelf: 'center' },
 
   // Stats
-  statsRow: { flexDirection: 'row', gap: 10 },
+  statsRow: { flexDirection: 'row', gap: 16, flexWrap: IS_WEB ? 'nowrap' : 'wrap' },
   statCard: {
     flex: 1,
-    backgroundColor: C.surfaceLowest,
-    borderRadius: 12,
+    minWidth: IS_WEB ? undefined : '46%',
+    backgroundColor: C.surface,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: C.border,
-    padding: 14,
-    ...(IS_WEB ? { boxShadow: '0 1px 3px rgba(0,0,0,0.05)' } : {}),
+    padding: 18,
+    ...SHADOW_SM,
   },
-  statLabel: { fontSize: 9, fontWeight: '700', color: C.textMuted, letterSpacing: 0.7, marginBottom: 6 },
-  statRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 },
-  statValue: { fontSize: 22, fontWeight: '800', color: C.text },
-  trendChip: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  statLabel: { fontSize: 10, fontWeight: '600', color: C.textMuted, letterSpacing: 0.6, marginBottom: 10 },
+  statRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 },
+  statValue: { fontSize: 24, fontWeight: '700', color: C.text, letterSpacing: -0.4 },
+  trendChip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
   trendText: { fontSize: 11, fontWeight: '700' },
-  trendStable: { fontSize: 11, color: C.textMuted },
+  trendStable: { fontSize: 11, color: C.textMuted, fontWeight: '600' },
 
   // Search
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: C.surfaceLowest,
-    borderRadius: 10,
+    gap: 10,
+    backgroundColor: C.surface,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: C.border,
-    paddingHorizontal: 14,
-    height: 42,
+    paddingHorizontal: 16,
+    height: 44,
   },
   searchInput: { flex: 1, fontSize: 14, color: C.text, outlineStyle: 'none' } as object,
   filterIconBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 9,
     borderWidth: 1,
     borderColor: C.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: C.surfaceLowest,
+    backgroundColor: C.surface,
   },
   filterIconBtnActive: { backgroundColor: C.primary, borderColor: C.primary },
 
   // Filter panel
   filterPanel: {
-    backgroundColor: C.surfaceLowest,
-    borderRadius: 12,
+    backgroundColor: C.surface,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: C.border,
-    padding: 16,
+    padding: 18,
     gap: 6,
-    ...(IS_WEB ? { boxShadow: '0 1px 3px rgba(0,0,0,0.06)' } : {}),
+    ...SHADOW_SM,
   },
   filterPanelHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   filterPanelTitle: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     color: C.textMuted,
-    letterSpacing: 0.8,
+    letterSpacing: 0.7,
     textTransform: 'uppercase',
   },
-  filterClearBtn: { fontSize: 12, fontWeight: '700', color: C.primary },
-  filterLabel: { fontSize: 10, fontWeight: '700', color: C.textMuted, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 6 },
-  filterChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  filterClearBtn: { fontSize: 12, fontWeight: '600', color: C.primary },
+  filterLabel: { fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8 },
+  filterChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   filterChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: C.border,
-    backgroundColor: C.surfaceLow,
+    backgroundColor: C.surfaceSubtle,
   },
   filterChipText: { fontSize: 12, fontWeight: '600', color: C.textMuted },
   filterInputRow: {
@@ -1632,118 +1670,108 @@ const s = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: C.surfaceLowest,
-    gap: 4,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: C.surface,
+    gap: 6,
   },
   filterInput: { flex: 1, fontSize: 13, color: C.text, outlineStyle: 'none' } as object,
-  filterDateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  filterDateRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   filterDateSep: { fontSize: 14, color: C.textLight },
 
   // Panel
   panel: {
-    backgroundColor: C.surfaceLowest,
-    borderRadius: 14,
+    backgroundColor: C.surface,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: C.border,
     overflow: 'hidden',
-    ...(IS_WEB ? { boxShadow: '0 1px 4px rgba(0,0,0,0.06)' } : {}),
+    ...SHADOW_MD,
   },
   panelHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 18,
+    padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
-    backgroundColor: C.surfaceLowest,
+    backgroundColor: C.surface,
   },
-  panelTitle: { fontSize: 17, fontWeight: '700', color: C.text },
-  panelSub: { fontSize: 12, color: C.textMuted, marginTop: 2 },
+  panelTitle: { fontSize: 16, fontWeight: '700', color: C.text },
+  panelSub: { fontSize: 12, color: C.textMuted, marginTop: 3 },
   panelActions: { flexDirection: 'row', gap: 8 },
   iconBtn: {
     width: 36,
     height: 36,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: C.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: C.surfaceLowest,
+    backgroundColor: C.surface,
   },
 
-  // Table (web)
+  // Thin single-line table (shared by web + mobile, horizontally scrollable)
   tableHeader: {
     flexDirection: 'row',
     paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: C.surfaceLow,
+    backgroundColor: C.surfaceSubtle,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
-  tableHeaderCell: { fontSize: 10, fontWeight: '700', color: C.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', flex: 1 },
+  tableHeaderCell: { fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' },
   tableRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
+    backgroundColor: C.surface,
   },
   tableCell: { flexDirection: 'row', alignItems: 'center', paddingRight: 8 },
-  tableCustomer: { fontSize: 14, fontWeight: '700', color: C.text },
-  tableContact: { fontSize: 12, color: C.textMuted, marginTop: 1 },
-  tableDate: { fontSize: 13, color: C.text },
-  tableTime: { fontSize: 12, color: C.textMuted, marginTop: 1 },
-  tableAddr: { fontSize: 12, color: C.text },
-  tableCoords: { fontSize: 10, color: C.textMuted, fontVariant: ['tabular-nums'], marginTop: 2 } as object,
-  tableAction: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 },
-  tableActionText: { fontSize: 13, fontWeight: '700', color: C.primary },
-
-  // Visit card (mobile)
-  visitCard: {
-    margin: 12,
-    marginTop: 0,
-    backgroundColor: C.surfaceLowest,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: C.border,
-    padding: 14,
-    gap: 10,
+  tableCustomer: { fontSize: 13, fontWeight: '600', color: C.text, marginLeft: 10, flexShrink: 1 },
+  tableMuted: { fontSize: 13, color: C.textMuted },
+  tableDate: { fontSize: 13, color: C.text, fontWeight: '500' },
+  tableTime: { fontSize: 12, color: C.textLight, marginTop: 1 },
+  tableAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: C.primarySoft,
   },
-  vcHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatar: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 13, fontWeight: '800' },
-  vcInfo: { flex: 1 },
-  vcCustomer: { fontSize: 15, fontWeight: '700', color: C.text },
-  vcContact: { fontSize: 12, color: C.textMuted, marginTop: 1 },
-  vcMeta: { gap: 4 },
-  vcMetaItem: { flexDirection: 'row', alignItems: 'center' },
-  vcMetaText: { fontSize: 12, color: C.textMuted, flex: 1 },
-  vcDate: { fontSize: 12, color: C.textMuted },
-  vcRemarks: { fontSize: 13, color: C.text, lineHeight: 19 },
-  vcAction: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-end' },
-  vcActionText: { fontSize: 13, fontWeight: '700', color: C.primary },
+  tableActionText: { fontSize: 12, fontWeight: '700', color: C.primary },
+
+  avatar: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 12, fontWeight: '700' },
 
   // Status badge
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 20,
     borderWidth: 1,
+    alignSelf: 'flex-start',
   },
-  statusText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontSize: 11, fontWeight: '600' },
 
   // Pagination
   pagination: {
     flexDirection: IS_WEB ? 'row' : 'column',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: 18,
     borderTopWidth: 1,
     borderTopColor: C.border,
-    gap: 10,
-    backgroundColor: C.surfaceLowest,
+    gap: 12,
+    backgroundColor: C.surface,
   },
   paginationInfo: { fontSize: 13, color: C.textMuted },
   pageButtons: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'center' },
@@ -1751,11 +1779,11 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: C.border,
-    backgroundColor: C.surfaceLowest,
+    backgroundColor: C.surface,
     gap: 2,
   },
   pageBtnActive: { backgroundColor: C.primary, borderColor: C.primary },
@@ -1774,7 +1802,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 8,
-    shadowColor: '#000',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.22,
     shadowRadius: 8,
@@ -1785,12 +1813,12 @@ const s = StyleSheet.create({
 const ms = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(15,23,42,0.45)',
     justifyContent: 'flex-end',
     ...(IS_WEB ? { alignItems: 'center', justifyContent: 'center' } : {}),
   },
   sheet: {
-    backgroundColor: C.surfaceLowest,
+    backgroundColor: C.surface,
     borderTopLeftRadius: IS_WEB ? 16 : 20,
     borderTopRightRadius: IS_WEB ? 16 : 20,
     borderBottomLeftRadius: IS_WEB ? 16 : 0,
@@ -1798,91 +1826,94 @@ const ms = StyleSheet.create({
     maxHeight: IS_WEB ? '90%' : '92%',
     width: IS_WEB ? Math.min(SW * 0.9, 540) : '100%',
     paddingTop: IS_WEB ? 0 : 8,
+    ...SHADOW_MD,
   },
   sheetHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 22,
+    paddingVertical: 18,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
-  sheetHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sheetHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   sheetIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: C.primaryLight,
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: C.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sheetTitle: { fontSize: 17, fontWeight: '700', color: C.text },
   closeBtn: { padding: 4 },
-  body: { paddingHorizontal: 20, paddingTop: 18 },
-  label: { fontSize: 10, fontWeight: '700', color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 },
+  body: { paddingHorizontal: 22, paddingTop: 20 },
+  label: { fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' },
   selectBox: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: C.surfaceLowest,
+    paddingVertical: 13,
+    backgroundColor: C.surface,
   },
   selectVal: { fontSize: 14, color: C.text, flex: 1 },
   selectPlaceholder: { fontSize: 14, color: C.textLight, flex: 1 },
   textInput: {
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 13,
     fontSize: 14,
     color: C.text,
+    backgroundColor: C.surface,
     outlineStyle: 'none',
   } as object,
-  errText: { fontSize: 11, color: C.lost, marginTop: 4, marginLeft: 2 },
+  errText: { fontSize: 11, color: C.danger, marginTop: 5, marginLeft: 2 },
   toggleRow: {
     flexDirection: 'row',
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
     marginBottom: 4,
   },
-  toggleBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', backgroundColor: C.surfaceLow },
+  toggleBtn: { flex: 1, paddingVertical: 11, alignItems: 'center', backgroundColor: C.surfaceSubtle },
   toggleBtnActive: { backgroundColor: C.primary },
   toggleText: { fontSize: 13, fontWeight: '600', color: C.textMuted },
   toggleTextActive: { color: C.onPrimary },
   sectionDivider: {
-    marginTop: 20,
-    marginBottom: 12,
+    marginTop: 22,
+    marginBottom: 14,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
-    paddingBottom: 6,
+    paddingBottom: 8,
   },
   sectionTitle: { fontSize: 13, fontWeight: '700', color: C.primary },
   textarea: {
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 13,
     fontSize: 14,
     color: C.text,
-    minHeight: 80,
+    backgroundColor: C.surface,
+    minHeight: 84,
     textAlignVertical: 'top',
     outlineStyle: 'none',
   } as object,
   gpsBox: {
-    backgroundColor: C.surfaceLow,
-    borderRadius: 10,
+    backgroundColor: C.surfaceSubtle,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: C.border,
-    padding: 14,
+    padding: 16,
     marginTop: 16,
     gap: 6,
   },
@@ -1896,22 +1927,22 @@ const ms = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 20,
-    backgroundColor: C.wonBg,
+    backgroundColor: C.successSoft,
   },
   dot: { width: 6, height: 6, borderRadius: 3 },
   accuracyText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
   gpsAddr: { fontSize: 13, fontWeight: '500', color: C.text },
   gpsCoords: { fontSize: 11, color: C.textMuted, fontVariant: ['tabular-nums'] } as object,
   photoBox: {
-    marginTop: 16,
+    marginTop: 18,
     borderWidth: 2,
     borderColor: C.border,
     borderStyle: 'dashed',
-    borderRadius: 10,
-    padding: 20,
+    borderRadius: 12,
+    padding: 22,
     alignItems: 'center',
     gap: 6,
-    backgroundColor: C.surfaceLowest,
+    backgroundColor: C.surfaceMuted,
   },
   photoText: { fontSize: 13, color: C.textMuted, textAlign: 'center' },
   photoHint: { fontSize: 10, fontWeight: '700', color: C.textLight, letterSpacing: 0.5, textTransform: 'uppercase' },
@@ -1921,40 +1952,41 @@ const ms = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: C.primary,
-    borderRadius: 10,
-    paddingVertical: 14,
-    marginTop: 18,
+    borderRadius: 12,
+    paddingVertical: 15,
+    marginTop: 20,
+    ...SHADOW_SM,
   },
   submitText: { fontSize: 15, fontWeight: '700', color: C.onPrimary },
 
   // Photo preview
-  photoPreviewWrap: { marginTop: 12, gap: 8 },
+  photoPreviewWrap: { marginTop: 14, gap: 8 },
   photoPreviewTitle: { fontSize: 12, fontWeight: '700', color: C.textMuted },
-  photoPreview: { width: '100%', height: 180, borderRadius: 10, backgroundColor: C.surfaceLow, borderWidth: 1, borderColor: C.border },
+  photoPreview: { width: '100%', height: 180, borderRadius: 12, backgroundColor: C.surfaceSubtle, borderWidth: 1, borderColor: C.border },
 });
 
 // Customer picker styles
 const cp = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  sheet: { backgroundColor: C.surfaceLowest, borderRadius: 16, width: '100%', maxWidth: 440, overflow: 'hidden' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: C.border },
+  overlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  sheet: { backgroundColor: C.surface, borderRadius: 16, width: '100%', maxWidth: 440, overflow: 'hidden', ...SHADOW_MD },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: C.border },
   title: { fontSize: 16, fontWeight: '700', color: C.text },
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
   searchInput: { flex: 1, fontSize: 14, color: C.text, paddingVertical: 4, outlineStyle: 'none' } as object,
-  item: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
+  item: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14 },
   itemName: { fontSize: 14, fontWeight: '600', color: C.text },
-  itemContact: { fontSize: 12, color: C.textMuted, marginTop: 1 },
+  itemContact: { fontSize: 12, color: C.textMuted, marginTop: 2 },
   empty: { padding: 24, textAlign: 'center', color: C.textMuted, fontSize: 13 },
 });
 
 // Visit detail styles
 const vd = StyleSheet.create({
-  customerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  custName: { fontSize: 17, fontWeight: '800', color: C.text },
+  customerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
+  custName: { fontSize: 17, fontWeight: '700', color: C.text },
   custContact: { fontSize: 13, color: C.textMuted, marginTop: 2 },
-  divider: { height: 1, backgroundColor: C.border, marginVertical: 14 },
-  detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 8, gap: 12 },
+  divider: { height: 1, backgroundColor: C.border, marginVertical: 16 },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 9, gap: 12 },
   detailLabel: { fontSize: 12, fontWeight: '600', color: C.textMuted, flex: 1 },
   detailValue: { fontSize: 13, color: C.text, flex: 2, textAlign: 'right' },
-  remarks: { fontSize: 14, color: C.text, lineHeight: 21, marginTop: 8, padding: 14, backgroundColor: C.surfaceLow, borderRadius: 10 },
+  remarks: { fontSize: 14, color: C.text, lineHeight: 21, marginTop: 10, padding: 16, backgroundColor: C.surfaceSubtle, borderRadius: 12 },
 });

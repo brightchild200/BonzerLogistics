@@ -317,11 +317,13 @@
 
         setSessionError('');
 
-        const { data, error: fetchError } = await supabase
+        // NOTE: `enquiries` table isn't present in the current generated Supabase types (lib/schema.ts).
+        // Using `any` here to prevent TS overload errors until schema types are regenerated / aligned.
+        const { data, error: fetchError } = (await (supabase as any)
           .from('enquiries')
           .select('*')
           .eq('id', id)
-          .maybeSingle();
+          .maybeSingle()) as { data: EnquiryRow | null; error: any };
 
         if (fetchError) {
           err('fetchEnquiry → query failed', fetchError);
@@ -631,12 +633,40 @@
         </View>
 
         {/* Action Bar */}
-        <View style={styles.actionBar}>
+          <View style={styles.actionBar}>
           {!isEditing ? (
-            <TouchableOpacity style={styles.actionBtn} onPress={handleEdit}>
-              <Edit2 size={16} color={COLORS.text} />
-              <Text style={styles.actionBtnText}>Edit</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity style={styles.actionBtn} onPress={handleEdit}>
+                <Edit2 size={16} color={COLORS.text} />
+                <Text style={styles.actionBtnText}>Edit</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionBtnConfirm]}
+                onPress={() => {
+                  Alert.alert(
+                    'Confirm enquiry',
+                    'Mark this enquiry as Confirmed?',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Confirm',
+                        style: 'destructive',
+                        onPress: () => {
+                          // enter edit mode to allow user to review changes if they want
+                          setIsEditing(true);
+                          setHasChanges(true);
+                          setForm((f) => ({ ...f, status: 'Confirmed' }));
+                        },
+                      },
+                    ]
+                  );
+                }}
+              >
+                <Save size={16} color={COLORS.white} />
+                <Text style={[styles.actionBtnText, styles.actionBtnTextPrimary]}>Confirm</Text>
+              </TouchableOpacity>
+            </>
           ) : (
             <>
               <TouchableOpacity
@@ -1175,6 +1205,10 @@
     },
     actionBtnPrimary: {
       backgroundColor: COLORS.primary,
+    },
+    actionBtnConfirm: {
+      backgroundColor: COLORS.success,
+      flex: 1,
     },
     actionBtnText: {
       fontSize: 12,

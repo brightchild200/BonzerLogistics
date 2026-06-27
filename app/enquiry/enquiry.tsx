@@ -1,32 +1,53 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  Platform,
-  TextInput,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Save, ChevronDown } from 'lucide-react-native';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator, Modal, FlatList } from 'react-native';
+import { useRouter } from 'expo-router';
+import { ArrowLeft, ClipboardPlus, Send, Loader, Search, Plus, X } from 'lucide-react-native';
 
 import { supabase } from '@/lib/supabase';
 import { COLORS } from '@/lib/types';
 import { resolveSalespersonSession } from '@/lib/salesperson-session';
+import { hasRole } from '@/lib/permissions';
+import SearchModal from "../../components/SearchModal";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+type ModeMasterRow = {
+  id: number;
+  mode_name: string;
+  mode_code: string;
+  port_type: 'AIR' | 'SEA' | null;
+  requires_ports: boolean;
+};
+
+type CustomerMasterRow = {
+  id: number;
+  name: string;
+  address: string | null;
+  gst: string | null;
+};
+
+type PortRow = {
+  id: number;
+  country_name: string;
+  location_name: string;
+  location_type: "AIR" | "SEA";
+  code: string;
+};
+
 
 type FormState = {
+  enquiry_no: string;
+  company_id: number | null;
   enq_date: string;
+  customer_id: number | null;
   customer_name: string;
   customer_address: string;
   customer_gst: string;
+  shipper_id: number | null;
   shipper: string;
+  cnee_id: number | null;
   cnee: string;
-  mode_id: string;
+  sales_person_id: number | null;
+  seals_person: string;
+  mode_id: number | null;
   pol_country: string;
   pol: string;
   pod_country: string;
@@ -37,48 +58,16 @@ type FormState = {
   gross_weight: string;
   gross_weight_unit: string;
   cbm: string;
+  // usd_exchange_rate: string;
+  // eur_exchange_rate: string;
+  // gbp_exchange_rate: string;
   status: string;
+  cancel_remark: string;
+  job_id: number | null;
 };
 
-const INITIAL_FORM: FormState = {
-  enq_date: new Date().toISOString().split('T')[0],
-  customer_name: '',
-  customer_address: '',
-  customer_gst: '',
-  shipper: '',
-  cnee: '',
-  mode_id: '',
-  pol_country: '',
-  pol: '',
-  pod_country: '',
-  pod: '',
-  commodity: '',
-  packages: '',
-  packages_unit: 'CTN',
-  gross_weight: '',
-  gross_weight_unit: 'KGS',
-  cbm: '',
-  status: 'Pending',
-};
-
-const MODE_OPTIONS = [
-  { id: 1, label: 'Sea Export' },
-  { id: 2, label: 'Sea Import' },
-  { id: 3, label: 'Air Export' },
-  { id: 4, label: 'Air Import' },
-];
-
-const STATUS_OPTIONS = ['Pending', 'Confirmed', 'Cancelled', 'Completed'];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function FieldLabel({ children, required }: { children: string; required?: boolean }) {
-  return (
-    <Text style={styles.fieldLabel}>
-      {children}
-      {required && <Text style={styles.required}> *</Text>}
-    </Text>
-  );
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return <Text style={styles.label}>{children}</Text>;
 }
 
 function Input({
@@ -86,180 +75,381 @@ function Input({
   onChangeText,
   placeholder,
   keyboardType,
-  multiline,
   editable = true,
 }: {
   value: string;
-  onChangeText: (v: string) => void;
+  onChangeText: (t: string) => void;
   placeholder?: string;
-  keyboardType?: any;
-  multiline?: boolean;
+  keyboardType?: 'default' | 'numeric';
   editable?: boolean;
 }) {
   return (
     <TextInput
-      style={[styles.input, multiline && styles.inputMulti, !editable && styles.inputDisabled]}
+      style={[styles.input, !editable && styles.inputDisabled]}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
       placeholderTextColor={COLORS.textLight}
       keyboardType={keyboardType}
-      multiline={multiline}
-      numberOfLines={multiline ? 3 : 1}
       editable={editable}
     />
   );
 }
 
-function SelectButtons({
-  options,
-  value,
-  onChange,
-}: {
-  options: string[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <View style={styles.selectRow}>
-      {options.map((opt) => (
-        <TouchableOpacity
-          key={opt}
-          style={[styles.selectBtn, value === opt && styles.selectBtnActive]}
-          onPress={() => onChange(opt)}
-        >
-          <Text style={[styles.selectBtnText, value === opt && styles.selectBtnTextActive]}>
-            {opt}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-}
-
-// ─── Screen ───────────────────────────────────────────────────────────────────
-
-export default function EnquiryFormScreen() {
+export default function EnquiryScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const isEdit = !!id;
 
-  const [form, setForm] = useState<FormState>(INITIAL_FORM);
-  const [enquiryNo, setEnquiryNo] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const initialState: FormState = useMemo(
+    () => ({
+      enquiry_no: '',
+      company_id: 6,
+      enq_date: new Date().toISOString().split('T')[0],
+      customer_id: null,
+      customer_name: '',
+      customer_address: '',
+      customer_gst: '',
+      shipper_id: null,
+      shipper: '',
+      cnee_id: null,
+      cnee: '',
+      sales_person_id: null,
+      seals_person: '',
+      mode_id: null,
+      pol_country: '',
+      pol: '',
+      pod_country: '',
+      pod: '',
+      commodity: '',
+      packages: '',
+      packages_unit: '',
+      gross_weight: '',
+      gross_weight_unit: '',
+      cbm: '',
+      // usd_exchange_rate: '0.00',
+      // eur_exchange_rate: '0.00',
+      // gbp_exchange_rate: '0.00',
+      status: 'Pending',
+      cancel_remark: '',
+      job_id: null,
+    }),
+    [],
+  );
 
-  const set = (key: keyof FormState) => (val: string) =>
-    setForm((f) => ({ ...f, [key]: val }));
+  const [form, setForm] = useState<FormState>(initialState);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string>('');
+  const [loadingEnquiryNo, setLoadingEnquiryNo] = useState(true);
 
-  // ── Load existing enquiry for edit ────────────────────────────────────────
+  const [MODE_OPTIONS, setMODE_OPTIONS] = useState<ModeMasterRow[]>([]);
 
-  useEffect(() => {
-    if (isEdit) {
-      loadEnquiry();
-    } else {
-      fetchNextEnquiryNo();
-    }
-  }, [id]);
 
-  async function fetchNextEnquiryNo() {
-    try {
-      const { data } = await supabase
-        .from('enquiries')
-        .select('enquiry_no')
-        .not('enquiry_no', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+  const [PORT_COUNTRIES, setPORT_COUNTRIES] = useState<string[]>([]);
+  const [PORTS, setPORTS] = useState<PortRow[]>([]);
 
-      let next = 1;
-      if (data?.enquiry_no) {
-        const match = data.enquiry_no.match(/ENQ-(\d+)/);
-        if (match) next = parseInt(match[1], 10) + 1;
-      }
-      setEnquiryNo(`ENQ-${next.toString().padStart(6, '0')}`);
-    } catch {
-      setEnquiryNo('ENQ-000001');
-    }
+  const [polCountryModalVisible, setPolCountryModalVisible] = useState(false);
+  const [polCountrySearch, setPolCountrySearch] = useState("");
+
+  const [polModalVisible, setPolModalVisible] = useState(false);
+  const [polSearch, setPolSearch] = useState("");
+
+  const [podCountryModalVisible, setPodCountryModalVisible] = useState(false);
+  const [podCountrySearch, setPodCountrySearch] = useState("");
+
+  const [podModalVisible, setPodModalVisible] = useState(false);
+  const [podSearch, setPodSearch] = useState("");
+
+  const [POD_PORTS, setPOD_PORTS] = useState<PortRow[]>([]);
+
+
+  const selectedMode = MODE_OPTIONS.find(
+    (m) => m.id === form.mode_id
+  );
+
+  const filteredCountries = PORT_COUNTRIES.filter((country) =>
+    country.toLowerCase().includes(polCountrySearch.toLowerCase())
+  );
+
+  const filteredPorts = PORTS.filter((port) =>
+    port.location_name
+      .toLowerCase()
+      .includes(polSearch.toLowerCase())
+  );
+
+  const filteredPodCountries = PORT_COUNTRIES.filter((country) =>
+    country.toLowerCase().includes(podCountrySearch.toLowerCase())
+  );
+
+  const filteredPodPorts = POD_PORTS.filter((port) =>
+    port.location_name
+      .toLowerCase()
+      .includes(podSearch.toLowerCase())
+  );
+
+
+  const [CUSTOMERS, setCUSTOMERS] = useState<CustomerMasterRow[]>([]);
+  const [loadingMasters, setLoadingMasters] = useState(true);
+
+  const [customerModalVisible, setCustomerModalVisible] = useState(false);
+  const [customerQuery, setCustomerQuery] = useState('');
+
+  const filteredCustomers = useMemo(() => {
+    const q = customerQuery.trim().toLowerCase();
+    if (!q) return CUSTOMERS;
+    return CUSTOMERS.filter((c) => c.name?.toLowerCase().includes(q));
+  }, [CUSTOMERS, customerQuery]);
+
+  const customerExactMatch = useMemo(
+    () => CUSTOMERS.some((c) => c.name?.toLowerCase() === customerQuery.trim().toLowerCase()),
+    [CUSTOMERS, customerQuery],
+  );
+
+  function openCustomerModal() {
+    setCustomerQuery(form.customer_name || '');
+    setCustomerModalVisible(true);
   }
 
-  async function loadEnquiry() {
-    setLoading(true);
-    try {
-      const { data, error: fetchErr } = await supabase
-        .from('enquiries')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
+  function selectExistingCustomer(c: CustomerMasterRow) {
+    setForm((p) => ({
+      ...p,
+      customer_id: c.id,
+      customer_name: c.name,
+      customer_address: c.address ?? p.customer_address,
+      customer_gst: c.gst ?? p.customer_gst,
+    }));
+    setCustomerModalVisible(false);
+    setCustomerQuery('');
+  }
 
-      if (fetchErr || !data) {
-        setError('Failed to load enquiry.');
-        setLoading(false);
+  function addNewCustomerName() {
+    const trimmed = customerQuery.trim();
+    if (!trimmed) return;
+    // Local-only: not written to customer_master, just used for this enquiry.
+    setForm((p) => ({ ...p, customer_id: null, customer_name: trimmed }));
+    setCustomerModalVisible(false);
+    setCustomerQuery('');
+  }
+
+
+  // Fetch masters (mode_master, customer_master)
+  useEffect(() => {
+    async function fetchMasters() {
+      try {
+        const { data: modes, error: modesErr } = await (supabase as any)
+          .from('mode_master')
+          .select('id, mode_name, mode_code, port_type, requires_ports')
+          .order('id', { ascending: true });
+
+        if (modesErr) throw modesErr;
+        setMODE_OPTIONS((modes ?? []) as ModeMasterRow[]);
+
+        const { data: customers, error: customersErr } = await (supabase as any)
+          .from('customer_master')
+          .select('id, name, address, gst')
+          .order('name', { ascending: true });
+
+
+        console.log('[customer_master] error:', customersErr);
+        console.log('[customer_master] data:', customers);
+        if (customersErr) throw customersErr;
+        setCUSTOMERS((customers ?? []) as CustomerMasterRow[]);
+
+      } catch (e) {
+        console.log('[enquiry] Failed to fetch masters:', e);
+      } finally {
+        setLoadingMasters(false);
+      }
+    }
+
+    fetchMasters();
+  }, []);
+
+  useEffect(() => {
+    async function fetchCountries() {
+      if (!selectedMode?.requires_ports) {
+        setPORT_COUNTRIES([]);
+        setPORTS([]);
         return;
       }
 
-      setEnquiryNo(data.enquiry_no || '');
-      setForm({
-        enq_date: data.enq_date?.split('T')[0] ?? new Date().toISOString().split('T')[0],
-        customer_name: data.customer_name ?? '',
-        customer_address: data.customer_address ?? '',
-        customer_gst: data.customer_gst ?? '',
-        shipper: data.shipper ?? '',
-        cnee: data.cnee ?? '',
-        mode_id: data.mode_id?.toString() ?? '',
-        pol_country: data.pol_country ?? '',
-        pol: data.pol ?? '',
-        pod_country: data.pod_country ?? '',
-        pod: data.pod ?? '',
-        commodity: data.commodity ?? '',
-        packages: data.packages ?? '',
-        packages_unit: data.packages_unit ?? 'CTN',
-        gross_weight: data.gross_weight ?? '',
-        gross_weight_unit: data.gross_weight_unit ?? 'KGS',
-        cbm: data.cbm ?? '',
-        status: data.status ?? 'Pending',
-      });
-    } catch {
-      setError('Failed to load enquiry.');
-    } finally {
-      setLoading(false);
-    }
-  }
+      const { data, error } = await (supabase as any)
+        .from("port_master")
+        .select("country_name")
+        .eq("location_type", selectedMode.port_type);
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+      if (error) {
+        console.log(error);
+        return;
+      }
 
-  async function handleSave() {
-    if (!form.customer_name.trim()) {
-      setError('Customer name is required.');
-      return;
-    }
-    if (!form.mode_id) {
-      setError('Please select a mode.');
-      return;
+      const countries: string[] = [
+        ...new Set(
+          ((data ?? []) as { country_name: string }[]).map(
+            (x) => x.country_name
+          )
+        ),
+      ].sort();
+
+      setPORT_COUNTRIES(countries);
     }
 
-    setSaving(true);
+    fetchCountries();
+  }, [selectedMode]);
+
+  useEffect(() => {
+    async function fetchPorts() {
+      if (!form.pol_country || !selectedMode?.port_type) {
+        setPORTS([]);
+        return;
+      }
+
+      const { data, error } = await (supabase as any)
+        .from("port_master")
+        .select("*")
+        .eq("location_type", selectedMode.port_type)
+        .eq("country_name", form.pol_country)
+        .order("location_name");
+
+      if (error) {
+        console.log(error);
+        return;
+      }
+
+      setPORTS((data ?? []) as PortRow[]);
+    }
+
+    fetchPorts();
+  }, [form.pol_country, selectedMode]);
+
+  useEffect(() => {
+    async function fetchPodPorts() {
+      if (!form.pod_country || !selectedMode?.port_type) {
+        setPOD_PORTS([]);
+        return;
+      }
+
+      const { data, error } = await (supabase as any)
+        .from("port_master")
+        .select("*")
+        .eq("location_type", selectedMode.port_type)
+        .eq("country_name", form.pod_country)
+        .order("location_name");
+
+      if (error) {
+        console.log(error);
+        return;
+      }
+
+      setPOD_PORTS((data ?? []) as PortRow[]);
+    }
+
+    fetchPodPorts();
+  }, [form.pod_country, selectedMode]);
+
+
+  // Fetch the next enquiry number on component mount
+  useEffect(() => {
+    async function fetchNextEnquiryNo() {
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        console.log('[enquiry] supabase.auth.getUser:', auth.user?.email ?? null);
+        const session = await resolveSalespersonSession(auth.user?.email ?? null);
+        console.log('[enquiry] resolveSalespersonSession:', { roles: session.roles, salesperson: session.salesperson });
+
+        const salespersonId = session.salesperson?.id ?? null;
+
+        // Fetch next enquiry number from backend.
+        // If we have a salesperson id, pass it along (e.g. for per-salesperson numbering).
+        // Otherwise (e.g. admin with no linked salesperson row) still ask the backend
+        // for the next number instead of giving up.
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+        const url = salespersonId
+          ? `${apiUrl}/api/enquiries/next-enquiry-no?sales_person_id=${salespersonId}`
+          : `${apiUrl}/api/enquiries/next-enquiry-no`;
+
+        const response = await fetch(url);
+
+        if (response.ok) {
+          const data = await response.json();
+          setForm(prev => ({ ...prev, enquiry_no: data.enquiry_no }));
+        } else {
+          console.log('[enquiry] next-enquiry-no request failed with status', response.status);
+        }
+      } catch (e) {
+        console.log('[enquiry] Failed to fetch enquiry no:', e);
+      } finally {
+        setLoadingEnquiryNo(false);
+      }
+    }
+
+    fetchNextEnquiryNo();
+  }, []);
+
+  async function handleSubmit() {
+    console.log('[enquiry] Starting form submission');
     setError('');
+    setSubmitting(true);
 
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      const session = await resolveSalespersonSession(auth.user?.email ?? null);
+      // Validate required fields
+      if (!form.customer_name.trim()) {
+        throw new Error('Customer name is required');
+      }
 
-      if (!session.salesperson) {
-        setError('No salesperson profile linked to this account.');
-        setSaving(false);
+      if (!form.pol.trim()) {
+        throw new Error('POL (Port of Loading) is required');
+      }
+
+      if (!form.pod.trim()) {
+        throw new Error('POD (Port of Destination) is required');
+      }
+
+      console.log('[enquiry] Form validation passed');
+
+      const { data: auth } = await supabase.auth.getUser();
+      console.log('[enquiry] Auth user retrieved:', auth.user?.email ?? null);
+
+      const session = await resolveSalespersonSession(auth.user?.email ?? null);
+      console.log('[enquiry] Session resolved:', {
+        roles: session.roles,
+        hasSalesperson: !!session.salesperson,
+        salespersonId: session.salesperson?.id ?? null,
+      });
+
+      // Admin users can create enquiries without a sales_persons mapping.
+      if (!session.appUser) {
+        const errorMsg = 'Unable to resolve user profile from `users` table.';
+        console.error('[enquiry] Error:', errorMsg);
+        setError(errorMsg);
+        return;
+      }
+
+      const isAdmin = hasRole(session.roles, 'admin');
+      if (!isAdmin && !session.salesperson) {
+        const errorMsg = 'No salesperson profile is linked to this account yet.';
+        console.error('[enquiry] Error:', errorMsg);
+        setError(errorMsg);
         return;
       }
 
       const payload = {
-        enq_date: form.enq_date || new Date().toISOString().split('T')[0],
-        customer_name: form.customer_name.trim(),
+        enquiry_no: form.enquiry_no.trim() || null,
+        company_id: form.company_id ?? 6,
+        enq_date: form.enq_date ? form.enq_date : null,
+        customer_id: form.customer_id,
+        customer_name: form.customer_name.trim() || null,
+
         customer_address: form.customer_address.trim() || null,
         customer_gst: form.customer_gst.trim() || null,
+        shipper_id: form.shipper_id,
         shipper: form.shipper.trim() || null,
+        cnee_id: form.cnee_id,
         cnee: form.cnee.trim() || null,
-        mode_id: form.mode_id ? Number(form.mode_id) : null,
+        // RLS note: sales_person_policy compares (sales_person_id)::text = CURRENT_USER.
+        // So for non-admin users, we must set sales_person_id to the CURRENT_USER value.
+        // For now we keep mapped id; if your CURRENT_USER != salesperson.id, update backend policy.
+        sales_person_id: isAdmin ? (form.sales_person_id ?? null) : (form.sales_person_id ?? session.salesperson?.id ?? null),
+        seals_person: form.seals_person.trim() || null,
+        mode_id: form.mode_id,
         pol_country: form.pol_country.trim() || null,
         pol: form.pol.trim() || null,
         pod_country: form.pod_country.trim() || null,
@@ -270,322 +460,615 @@ export default function EnquiryFormScreen() {
         gross_weight: form.gross_weight.trim() || null,
         gross_weight_unit: form.gross_weight_unit.trim() || null,
         cbm: form.cbm.trim() || null,
-        status: form.status,
-        updated_at: new Date().toISOString(),
+        // usd_exchange_rate: Number(form.usd_exchange_rate) || 0,
+        // eur_exchange_rate: Number(form.eur_exchange_rate) || 0,
+        // gbp_exchange_rate: Number(form.gbp_exchange_rate) || 0,
+        status: form.status || 'Pending',
+        cancel_remark: form.cancel_remark.trim() || null,
+        job_id: form.job_id,
       };
 
-      if (isEdit) {
-        const { error: updateErr } = await supabase
-          .from('enquiries')
-          .update(payload)
-          .eq('id', id);
+      console.log('[enquiry] session used for insert', {
+        roles: session.roles,
+        hasSalesperson: !!session.salesperson,
+        salespersonId: session.salesperson?.id ?? null,
+      });
+      console.log(payload);
+      console.log('[enquiry] insert payload', payload);
 
-        if (updateErr) {
-          setError('Failed to update enquiry: ' + updateErr.message);
-          setSaving(false);
-          return;
-        }
-        Alert.alert('Success', 'Enquiry updated successfully.', [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
-      } else {
-        const { error: insertErr } = await supabase.from('enquiries').insert({
-          ...payload,
-          enquiry_no: enquiryNo,
-          sales_person_id: session.salesperson.id,
-        });
+      // NOTE: schema.ts currently doesn't include `enquiries`, so we cast to `any` to avoid TS blocking.
+      const { error: insertError, data } = await (supabase as any)
+        .from('enquiries')
+        .insert(payload)
+        .select()
+        .maybeSingle();
 
-        if (insertErr) {
-          setError('Failed to create enquiry: ' + insertErr.message);
-          setSaving(false);
-          return;
-        }
-        Alert.alert('Success', 'Enquiry created successfully.', [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
+      console.log('[enquiry] insert result', { hasError: !!insertError, insertError: insertError ?? null, inserted: data ?? null });
+
+      if (insertError) {
+        console.error('[enquiry] Database insert error:', insertError);
+        setError(`Database error: ${insertError.message}`);
+        return;
       }
+
+      console.log('[enquiry] Successfully inserted data:', data);
+
+      // reset form after successful insert
+      setForm(initialState);
+      router.back();
     } catch (e: any) {
-      setError(e?.message ?? 'An unexpected error occurred.');
+      console.error('[enquiry] submit exception', e);
+      const errorMsg = e?.message ?? 'Failed to create enquiry.';
+      setError(errorMsg);
+      console.error('[enquiry] Error message:', errorMsg);
     } finally {
-      setSaving(false);
+      setSubmitting(false);
     }
-  }
-
-  // ── Render ────────────────────────────────────────────────────────────────
-
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
   }
 
   return (
     <View style={styles.screen}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <ArrowLeft size={20} color={COLORS.text} />
+      <View style={styles.topbar}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <ArrowLeft size={18} color={COLORS.text} />
         </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>{isEdit ? 'Edit Enquiry' : 'New Enquiry'}</Text>
-          {enquiryNo ? (
-            <Text style={styles.headerSub}>{enquiryNo}</Text>
-          ) : null}
+        <View style={styles.topbarCopy}>
+          <Text style={styles.title}>Enquiry</Text>
+          <Text style={styles.subtitle}>New enquiry details</Text>
         </View>
-        <TouchableOpacity
-          style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-          onPress={handleSave}
-          disabled={saving}
-        >
-          <Save size={16} color={COLORS.white} />
-          <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save'}</Text>
-        </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        {/* Error */}
-        {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.card}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionIconWrap}>
+              <ClipboardPlus size={18} color={COLORS.primary} />
+            </View>
+            <Text style={styles.sectionTitle}>Enquiry Information</Text>
           </View>
-        ) : null}
 
-        {/* Enquiry Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Enquiry Information</Text>
-          <View style={styles.card}>
+          <View style={styles.grid2}>
+            <View style={styles.field}>
+              <FieldLabel>Enquiry No {loadingEnquiryNo && '(Loading...)'}</FieldLabel>
+              {loadingEnquiryNo ? (
+                <View style={[styles.input, styles.inputDisabled, { justifyContent: 'center', alignItems: 'center' }]}>
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                </View>
+              ) : (
+                <Input
+                  value={form.enquiry_no}
+                  onChangeText={(t) => setForm((p) => ({ ...p, enquiry_no: t }))}
+                  placeholder="Auto-generated"
+                  editable={false}
+                />
+              )}
+            </View>
             <View style={styles.field}>
               <FieldLabel>Enquiry Date</FieldLabel>
-              <Input value={form.enq_date} onChangeText={set('enq_date')} placeholder="YYYY-MM-DD" />
+              <Input value={form.enq_date} onChangeText={(t) => setForm((p) => ({ ...p, enq_date: t }))} placeholder="YYYY-MM-DD" />
             </View>
+          </View>
+
+          <View style={styles.grid2}>
             <View style={styles.field}>
-              <FieldLabel required>Customer Name</FieldLabel>
-              <Input value={form.customer_name} onChangeText={set('customer_name')} placeholder="Customer or company name" />
-            </View>
-            <View style={styles.field}>
-              <FieldLabel>Customer Address</FieldLabel>
-              <Input value={form.customer_address} onChangeText={set('customer_address')} placeholder="Address" multiline />
+              <FieldLabel>Customer *</FieldLabel>
+              {loadingMasters ? (
+                <View style={[styles.input, styles.inputDisabled, { justifyContent: 'center', alignItems: 'center' }]}>
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.customerPickerField}
+                  onPress={() => {
+                    console.log(
+                      '[Customers Retrieved]',
+                      CUSTOMERS.map(c => c.name)
+                    );
+                    openCustomerModal();
+                  }}>
+                  <Text
+                    style={[
+                      styles.customerPickerText,
+                      !form.customer_name && styles.customerPickerPlaceholder,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {form.customer_name || 'Search or add a customer'}
+                  </Text>
+                  <Search size={16} color={COLORS.textLight} />
+                </TouchableOpacity>
+              )}
             </View>
             <View style={styles.field}>
               <FieldLabel>Customer GST</FieldLabel>
-              <Input value={form.customer_gst} onChangeText={set('customer_gst')} placeholder="GSTIN" />
-            </View>
-            <View style={styles.field}>
-              <FieldLabel>Status</FieldLabel>
-              <SelectButtons options={STATUS_OPTIONS} value={form.status} onChange={set('status')} />
+              <Input value={form.customer_gst} onChangeText={(t) => setForm((p) => ({ ...p, customer_gst: t }))} placeholder="GSTIN (optional)" />
             </View>
           </View>
-        </View>
 
-        {/* Shipment Details */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Shipment Details</Text>
-          <View style={styles.card}>
-            <View style={styles.field}>
-              <FieldLabel required>Mode</FieldLabel>
-              <SelectButtons
-                options={MODE_OPTIONS.map((m) => m.label)}
-                value={MODE_OPTIONS.find((m) => m.id.toString() === form.mode_id)?.label ?? ''}
-                onChange={(label) => {
-                  const found = MODE_OPTIONS.find((m) => m.label === label);
-                  if (found) set('mode_id')(found.id.toString());
-                }}
-              />
-            </View>
-            <View style={styles.grid2}>
-              <View style={[styles.field, { flex: 1 }]}>
-                <FieldLabel>POL Country</FieldLabel>
-                <Input value={form.pol_country} onChangeText={set('pol_country')} placeholder="Country" />
-              </View>
-              <View style={[styles.field, { flex: 1 }]}>
-                <FieldLabel>Port of Loading</FieldLabel>
-                <Input value={form.pol} onChangeText={set('pol')} placeholder="POL" />
-              </View>
-            </View>
-            <View style={styles.grid2}>
-              <View style={[styles.field, { flex: 1 }]}>
-                <FieldLabel>POD Country</FieldLabel>
-                <Input value={form.pod_country} onChangeText={set('pod_country')} placeholder="Country" />
-              </View>
-              <View style={[styles.field, { flex: 1 }]}>
-                <FieldLabel>Port of Destination</FieldLabel>
-                <Input value={form.pod} onChangeText={set('pod')} placeholder="POD" />
-              </View>
-            </View>
+<SearchModal<CustomerMasterRow>
+  visible={customerModalVisible}
+  title="Select Customer"
+  search={customerQuery}
+  setSearch={setCustomerQuery}
+  data={filteredCustomers}
+  keyExtractor={(item) => String(item.id)}
+  labelExtractor={(item) => item.name}
+  subtitleExtractor={(item) => item.gst || ""}
+  onSelect={selectExistingCustomer}
+  onClose={() => setCustomerModalVisible(false)}
+  showAddButton={
+    customerQuery.trim().length > 0 && !customerExactMatch
+  }
+  addButtonText={`Add "${customerQuery.trim()}" as new customer`}
+  onAddNew={addNewCustomerName}
+/>
+
+          <SearchModal<string>
+            visible={polCountryModalVisible}
+            title="Select POL Country"
+            search={polCountrySearch}
+            setSearch={setPolCountrySearch}
+            data={filteredCountries}
+            keyExtractor={(item) => item}
+            labelExtractor={(item) => item}
+            onSelect={(country) => {
+              setForm((prev) => ({
+                ...prev,
+                pol_country: country,
+                pol: "",
+                pod_country: "",
+                pod: "",
+              }));
+
+              setPolCountryModalVisible(false);
+            }}
+            onClose={() => setPolCountryModalVisible(false)}
+          />
+
+          <SearchModal<PortRow>
+            visible={polModalVisible}
+            title="Select POL"
+            search={polSearch}
+            setSearch={setPolSearch}
+            data={filteredPorts}
+            keyExtractor={(item) => String(item.id)}
+            labelExtractor={(item) => item.location_name}
+            subtitleExtractor={(item) => item.code}
+            onSelect={(port) => {
+              setForm((prev) => ({
+                ...prev,
+                pol: port.location_name,
+              }));
+
+              setPolModalVisible(false);
+            }}
+            onClose={() => setPolModalVisible(false)}
+          />
+
+          <SearchModal<string>
+            visible={podCountryModalVisible}
+            title="Select POD Country"
+            search={podCountrySearch}
+            setSearch={setPodCountrySearch}
+            data={filteredPodCountries}
+            keyExtractor={(item) => item}
+            labelExtractor={(item) => item}
+            onSelect={(country) => {
+              setForm((prev) => ({
+                ...prev,
+                pod_country: country,
+                pod: "",
+              }));
+
+              setPodCountryModalVisible(false);
+            }}
+            onClose={() => setPodCountryModalVisible(false)}
+          />
+
+          <SearchModal<PortRow>
+            visible={podModalVisible}
+            title="Select POD"
+            search={podSearch}
+            setSearch={setPodSearch}
+            data={filteredPodPorts}
+            keyExtractor={(item) => String(item.id)}
+            labelExtractor={(item) => item.location_name}
+            subtitleExtractor={(item) => item.code}
+            onSelect={(port) => {
+              setForm((prev) => ({
+                ...prev,
+                pod: port.location_name,
+              }));
+
+              setPodModalVisible(false);
+            }}
+            onClose={() => setPodModalVisible(false)}
+          />
+
+          <View style={styles.field}>
+            <FieldLabel>Customer Address</FieldLabel>
+            <TextInput
+              style={styles.inputMultiline}
+              value={form.customer_address}
+              onChangeText={(t) => setForm((p) => ({ ...p, customer_address: t }))}
+              placeholder="Address"
+              placeholderTextColor={COLORS.textLight}
+              multiline
+              numberOfLines={4}
+            />
           </View>
-        </View>
 
-        {/* Shipper & Consignee */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Shipper & Consignee</Text>
-          <View style={styles.card}>
+          <View style={styles.divider} />
+
+          <View style={styles.grid2}>
             <View style={styles.field}>
               <FieldLabel>Shipper</FieldLabel>
-              <Input value={form.shipper} onChangeText={set('shipper')} placeholder="Shipper name" />
+              <Input value={form.shipper} onChangeText={(t) => setForm((p) => ({ ...p, shipper: t }))} placeholder="Shipper name" />
             </View>
             <View style={styles.field}>
-              <FieldLabel>Consignee</FieldLabel>
-              <Input value={form.cnee} onChangeText={set('cnee')} placeholder="Consignee name" />
+              <FieldLabel>Cnee</FieldLabel>
+              <Input value={form.cnee} onChangeText={(t) => setForm((p) => ({ ...p, cnee: t }))} placeholder="Consignee name" />
             </View>
           </View>
-        </View>
 
-        {/* Cargo Details */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Cargo Details</Text>
-          <View style={styles.card}>
+          <View style={styles.field}>
+            <FieldLabel>Mode *</FieldLabel>
+            {loadingMasters ? (
+              <View style={[styles.input, styles.inputDisabled, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="small" color={COLORS.primary} />
+              </View>
+            ) : (
+              <View style={styles.selectWrapper}>
+                {MODE_OPTIONS.map((m) => {
+                  const active = form.mode_id === m.id;
+                  return (
+                    <TouchableOpacity
+                      key={m.id}
+                      style={[styles.selectBtn, active && styles.selectBtnActive]}
+                      onPress={() => setForm((p) => ({ ...p, mode_id: m.id }))}
+                    >
+                      <Text style={[styles.selectBtnText, active && styles.selectBtnTextActive]}>
+                        {m.mode_name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+
+          <View style={styles.grid2}>
             <View style={styles.field}>
-              <FieldLabel>Commodity</FieldLabel>
-              <Input value={form.commodity} onChangeText={set('commodity')} placeholder="Describe the cargo" />
+              <FieldLabel>POL Country</FieldLabel>
+              <TouchableOpacity
+                style={[
+                  styles.customerPickerField,
+                  !selectedMode?.requires_ports && styles.inputDisabled,
+                ]}
+                disabled={!selectedMode?.requires_ports}
+                onPress={() => setPolCountryModalVisible(true)}
+              >
+                <Text
+                  style={[
+                    styles.customerPickerText,
+                    !form.pol_country && styles.customerPickerPlaceholder,
+                  ]}
+                >
+                  {form.pol_country || "Select Country"}
+                </Text>
+
+                <Search size={16} color={COLORS.textLight} />
+              </TouchableOpacity>
             </View>
-            <View style={styles.grid2}>
-              <View style={[styles.field, { flex: 2 }]}>
-                <FieldLabel>Packages</FieldLabel>
-                <Input value={form.packages} onChangeText={set('packages')} placeholder="0" keyboardType="numeric" />
-              </View>
-              <View style={[styles.field, { flex: 1 }]}>
-                <FieldLabel>Unit</FieldLabel>
-                <Input value={form.packages_unit} onChangeText={set('packages_unit')} placeholder="CTN" />
-              </View>
+            <View style={styles.field}>
+              <FieldLabel>POL *</FieldLabel>
+              <TouchableOpacity
+                style={[
+                  styles.customerPickerField,
+                  !selectedMode?.requires_ports && styles.inputDisabled,
+                ]}
+                disabled={!selectedMode?.requires_ports}
+                onPress={() => setPolModalVisible(true)}
+              >
+                <Text
+                  style={[
+                    styles.customerPickerText,
+                    !form.pol && styles.customerPickerPlaceholder,
+                  ]}
+                >
+                  {form.pol || "Select POL"}
+                </Text>
+
+                <Search size={16} color={COLORS.textLight} />
+              </TouchableOpacity>
             </View>
-            <View style={styles.grid2}>
-              <View style={[styles.field, { flex: 2 }]}>
-                <FieldLabel>Gross Weight</FieldLabel>
-                <Input value={form.gross_weight} onChangeText={set('gross_weight')} placeholder="0" keyboardType="numeric" />
-              </View>
-              <View style={[styles.field, { flex: 1 }]}>
-                <FieldLabel>Unit</FieldLabel>
-                <Input value={form.gross_weight_unit} onChangeText={set('gross_weight_unit')} placeholder="KGS" />
-              </View>
+          </View>
+
+
+
+          <View style={styles.grid2}>
+
+            <View style={styles.field}>
+              <FieldLabel>POD Country</FieldLabel>
+              <TouchableOpacity
+                style={[
+                  styles.customerPickerField,
+                  !selectedMode?.requires_ports && styles.inputDisabled,
+                ]}
+                disabled={!selectedMode?.requires_ports}
+                onPress={() => setPodCountryModalVisible(true)}
+              >
+                <Text
+                  style={[
+                    styles.customerPickerText,
+                    !form.pod_country && styles.customerPickerPlaceholder,
+                  ]}
+                >
+                  {form.pod_country || "Select Country"}
+                </Text>
+
+                <Search size={16} color={COLORS.textLight} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.field}>
+              <FieldLabel>POD *</FieldLabel>
+              <TouchableOpacity
+                style={[
+                  styles.customerPickerField,
+                  !selectedMode?.requires_ports && styles.inputDisabled,
+                ]}
+                disabled={!selectedMode?.requires_ports}
+                onPress={() => setPodModalVisible(true)}
+              >
+                <Text
+                  style={[
+                    styles.customerPickerText,
+                    !form.pod && styles.customerPickerPlaceholder,
+                  ]}
+                >
+                  {form.pod || "Select POD"}
+                </Text>
+
+                <Search size={16} color={COLORS.textLight} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <FieldLabel>Commodity</FieldLabel>
+            <Input value={form.commodity} onChangeText={(t) => setForm((p) => ({ ...p, commodity: t }))} placeholder="Commodity" />
+          </View>
+
+          <View style={styles.grid3}>
+            <View style={styles.field}>
+              <FieldLabel>Packages</FieldLabel>
+              <Input value={form.packages} onChangeText={(t) => setForm((p) => ({ ...p, packages: t }))} placeholder="e.g. 100" keyboardType="numeric" />
+            </View>
+            <View style={styles.field}>
+              <FieldLabel>Unit</FieldLabel>
+              <Input value={form.packages_unit} onChangeText={(t) => setForm((p) => ({ ...p, packages_unit: t }))} placeholder="CTN" />
             </View>
             <View style={styles.field}>
               <FieldLabel>CBM</FieldLabel>
-              <Input value={form.cbm} onChangeText={set('cbm')} placeholder="0.00" keyboardType="numeric" />
+              <Input value={form.cbm} onChangeText={(t) => setForm((p) => ({ ...p, cbm: t }))} placeholder="m³" keyboardType="numeric" />
             </View>
           </View>
+
+          <View style={styles.grid2}>
+            <View style={styles.field}>
+              <FieldLabel>Gross Weight</FieldLabel>
+              <Input value={form.gross_weight} onChangeText={(t) => setForm((p) => ({ ...p, gross_weight: t }))} placeholder="e.g. 1250" keyboardType="numeric" />
+            </View>
+            <View style={styles.field}>
+              <FieldLabel>Weight Unit</FieldLabel>
+              <Input value={form.gross_weight_unit} onChangeText={(t) => setForm((p) => ({ ...p, gross_weight_unit: t }))} placeholder="KGS" />
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* <View style={styles.grid3}>
+            <View style={styles.field}>
+              <FieldLabel>USD Rate</FieldLabel>
+              <Input value={form.usd_exchange_rate} onChangeText={(t) => setForm((p) => ({ ...p, usd_exchange_rate: t }))} placeholder="0.00" keyboardType="numeric" />
+            </View>
+            <View style={styles.field}>
+              <FieldLabel>EUR Rate</FieldLabel>
+              <Input value={form.eur_exchange_rate} onChangeText={(t) => setForm((p) => ({ ...p, eur_exchange_rate: t }))} placeholder="0.00" keyboardType="numeric" />
+            </View>
+            <View style={styles.field}>
+              <FieldLabel>GBP Rate</FieldLabel>
+              <Input value={form.gbp_exchange_rate} onChangeText={(t) => setForm((p) => ({ ...p, gbp_exchange_rate: t }))} placeholder="0.00" keyboardType="numeric" />
+            </View>
+          </View> */}
+
+          {error ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>Error: {error}</Text>
+            </View>
+          ) : null}
+
+          <TouchableOpacity style={[styles.primaryBtn, submitting && styles.primaryBtnDisabled]} onPress={handleSubmit} disabled={submitting}>
+            {submitting ? <Text style={styles.primaryBtnText}>Saving...</Text> : <View style={styles.btnRow}><Send size={18} color={COLORS.white} /><Text style={styles.primaryBtnText}>Save Enquiry</Text></View>}
+          </TouchableOpacity>
         </View>
 
-        {/* Save button at bottom */}
-        <TouchableOpacity
-          style={[styles.bottomSaveBtn, saving && styles.saveBtnDisabled]}
-          onPress={handleSave}
-          disabled={saving}
-        >
-          <Save size={18} color={COLORS.white} />
-          <Text style={styles.bottomSaveBtnText}>{saving ? 'Saving...' : isEdit ? 'Update Enquiry' : 'Create Enquiry'}</Text>
-        </TouchableOpacity>
-
-        <View style={{ height: 40 }} />
+        <View style={{ height: 20 }} />
       </ScrollView>
     </View>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  header: {
+  topbar: {
+
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    paddingTop: Platform.OS === 'web' ? 14 : 50,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'web' ? 14 : 50,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
-    gap: 12,
+    backgroundColor: COLORS.white,
+    gap: 10,
   },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  backBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: COLORS.gray50, alignItems: 'center', justifyContent: 'center' },
+  topbarCopy: { flex: 1 },
+  title: { fontSize: 22, fontWeight: '800', color: COLORS.text },
+  subtitle: { marginTop: 2, fontSize: 12, color: COLORS.textMuted },
+  content: { padding: 16 },
+  card: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 16, gap: 14 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sectionIconWrap: { width: 34, height: 34, borderRadius: 12, backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  sectionTitle: { fontSize: 15, fontWeight: '800', color: COLORS.text },
+  label: { fontSize: 11, color: COLORS.textLight, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: '700', marginBottom: 6 },
+  input: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, height: 42, paddingHorizontal: 12, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.gray50 },
+  inputDisabled: { opacity: 0.6 },
+  inputMultiline: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: COLORS.text, backgroundColor: COLORS.gray50, minHeight: 90 },
+  grid2: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  grid3: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  field: { flex: 1, minWidth: 160 },
+  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 2 },
+  errorBox: { backgroundColor: COLORS.dangerLight, borderLeftWidth: 3, borderLeftColor: COLORS.danger, borderRadius: 10, padding: 10 },
+  errorText: { color: COLORS.danger, fontSize: 13, fontWeight: '700' },
+  primaryBtn: { height: 52, borderRadius: 12, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  primaryBtnDisabled: { opacity: 0.7 },
+  primaryBtnText: { color: COLORS.white, fontSize: 16, fontWeight: '800' },
+  btnRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+
+  // Select buttons (mode/customer)
+  selectWrapper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  selectBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
     backgroundColor: COLORS.gray50,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  headerContent: { flex: 1 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text },
-  headerSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  saveBtn: {
+  selectBtnActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  selectBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  selectBtnTextActive: {
+    color: COLORS.white,
+  },
+
+  // Customer searchable picker
+  customerPickerField: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 8,
-  },
-  saveBtnDisabled: { opacity: 0.6 },
-  saveBtnText: { fontSize: 14, fontWeight: '700', color: COLORS.white },
-
-  scroll: { flex: 1 },
-  content: { padding: 16, gap: 16 },
-
-  errorBox: {
-    backgroundColor: COLORS.dangerLight,
-    borderRadius: 8,
-    padding: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.danger,
-  },
-  errorText: { fontSize: 13, color: COLORS.danger },
-
-  section: { gap: 10 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  card: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
+    justifyContent: 'space-between',
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 16,
-    gap: 14,
-  },
-  field: { gap: 6 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textMuted },
-  required: { color: COLORS.danger },
-
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
+    borderRadius: 10,
+    height: 42,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    backgroundColor: COLORS.gray50,
+    gap: 8,
+  },
+  customerPickerText: {
+    flex: 1,
     fontSize: 14,
     color: COLORS.text,
+  },
+  customerPickerPlaceholder: {
+    color: COLORS.textLight,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: Platform.OS === 'web' ? 'center' : 'flex-end',
+    alignItems: Platform.OS === 'web' ? 'center' : 'stretch',
+  },
+  modalCard: {
     backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 16,
+    width: Platform.OS === 'web' ? 420 : '100%',
+    maxHeight: '80%',
+    gap: 10,
   },
-  inputMulti: { height: 80, textAlignVertical: 'top' },
-  inputDisabled: { backgroundColor: COLORS.gray50, color: COLORS.textMuted },
-
-  grid2: { flexDirection: 'row', gap: 10 },
-
-  selectRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  selectBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: COLORS.gray50,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  selectBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  selectBtnText: { fontSize: 13, fontWeight: '600', color: COLORS.text },
-  selectBtnTextActive: { color: COLORS.white },
-
-  bottomSaveBtn: {
+  modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: COLORS.primary,
-    paddingVertical: 14,
-    borderRadius: 10,
-    marginTop: 8,
+    justifyContent: 'space-between',
   },
-  bottomSaveBtnText: { fontSize: 15, fontWeight: '700', color: COLORS.white },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  modalCloseBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: COLORS.gray50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSearchInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    height: 42,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: COLORS.text,
+    backgroundColor: COLORS.gray50,
+  },
+  addNewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: COLORS.primaryLight,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  addNewBtnText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  customerList: {
+    maxHeight: 320,
+  },
+  customerListEmpty: {
+    textAlign: 'center',
+    color: COLORS.textLight,
+    fontSize: 13,
+    paddingVertical: 16,
+  },
+  customerOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  customerOptionActive: {
+    backgroundColor: COLORS.primaryLight,
+  },
+  customerOptionText: {
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  customerOptionTextActive: {
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
 });
