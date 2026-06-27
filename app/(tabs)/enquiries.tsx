@@ -24,9 +24,19 @@ import {
   XCircle,
   Package,
   X,
+  BarChart2,
+  FileDown,
 } from 'lucide-react-native';
 
 import { supabase } from '@/lib/supabase';
+import {
+  computeEnquiryReport,
+  exportEnquiryExcel,
+  generateEnquiryPdfHtml,
+  openPdfInBrowser,
+  rangeLabel,
+  type ReportRange,
+} from '@/lib/reportService';
 import { COLORS } from '@/lib/types';
 import { resolveSalespersonSession } from '@/lib/salesperson-session';
 import { hasRole } from '@/lib/permissions';
@@ -186,6 +196,15 @@ export default function EnquiriesScreen() {
   // Filter modal visibility
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+
+  // Report modal state
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportRange, setReportRange] = useState<ReportRange>('monthly');
+  const [reportCustomStart, setReportCustomStart] = useState('');
+  const [reportCustomEnd, setReportCustomEnd] = useState('');
+  const [reportData, setReportData] = useState<ReturnType<typeof computeEnquiryReport> | null>(null);
+  const [reportGenerating, setReportGenerating] = useState(false);
+  const [reportError, setReportError] = useState('');
 
   // ── Data loading ──────────────────────────────────────────────────────────
 
@@ -471,6 +490,43 @@ export default function EnquiriesScreen() {
     );
   }
 
+  function handleGenerateReport() {
+    setReportError('');
+    if (reportRange === 'custom') {
+      if (!reportCustomStart || !reportCustomEnd) {
+        setReportError('Please select both start and end dates.');
+        return;
+      }
+      if (new Date(reportCustomStart) > new Date(reportCustomEnd)) {
+        setReportError('End date cannot be before start date.');
+        return;
+      }
+    }
+    setReportGenerating(true);
+    setTimeout(() => {
+      try {
+        const data = computeEnquiryReport(enquiries, reportRange, reportCustomStart, reportCustomEnd);
+        setReportData(data);
+      } catch (e) {
+        setReportError('Failed to generate report.');
+      } finally {
+        setReportGenerating(false);
+      }
+    }, 300);
+  }
+
+  function handleViewReportPdf() {
+    if (!reportData) return;
+    const label = rangeLabel(reportData.range, reportData.start, reportData.end);
+    openPdfInBrowser(generateEnquiryPdfHtml(reportData, label));
+  }
+
+  function handleExportReportExcel() {
+    if (!reportData) return;
+    const label = rangeLabel(reportData.range, reportData.start, reportData.end);
+    exportEnquiryExcel(reportData, label);
+  }
+
   function clearFilters() {
     setFilterCustomer('');
     setFilterDate('');
@@ -686,6 +742,126 @@ export default function EnquiriesScreen() {
 
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      {/* ── Report Modal ── */}
+      <Modal visible={showReportModal} transparent animationType="fade" onRequestClose={() => setShowReportModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowReportModal(false)}>
+          <Pressable style={styles.modalBox} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Generate Report</Text>
+              <TouchableOpacity onPress={() => setShowReportModal(false)}>
+                <X size={20} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {!reportData ? (
+              <>
+                {/* Report type selector */}
+                <Text style={styles.modalSectionLabel}>Report Type</Text>
+                {(['daily', 'weekly', 'monthly', 'custom'] as ReportRange[]).map((r) => (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.radioRow, reportRange === r && styles.radioRowActive]}
+                    onPress={() => setReportRange(r)}
+                  >
+                    <View style={[styles.radioCircle, reportRange === r && styles.radioCircleActive]}>
+                      {reportRange === r && <View style={styles.radioDot} />}
+                    </View>
+                    <Text style={[styles.radioLabel, reportRange === r && styles.radioLabelActive]}>
+                      {r === 'daily' ? 'Daily Report (Today)' :
+                       r === 'weekly' ? 'Weekly Report (Last 7 days)' :
+                       r === 'monthly' ? 'Monthly Report (This month)' :
+                       'Custom Date Range'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+
+                {reportRange === 'custom' && (
+                  <View style={styles.customDateRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modalSectionLabel}>Start Date</Text>
+                      {(typeof window !== 'undefined') ? (
+                        <input type="date" value={reportCustomStart} onChange={(e: any) => setReportCustomStart(e.target.value)}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1px solid ${COLORS.border}`, fontSize: 14, color: COLORS.text, boxSizing: 'border-box' } as any} />
+                      ) : (
+                        <TextInput style={styles.dateInput} value={reportCustomStart} onChangeText={setReportCustomStart} placeholder="YYYY-MM-DD" placeholderTextColor={COLORS.textLight} />
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modalSectionLabel}>End Date</Text>
+                      {(typeof window !== 'undefined') ? (
+                        <input type="date" value={reportCustomEnd} onChange={(e: any) => setReportCustomEnd(e.target.value)}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1px solid ${COLORS.border}`, fontSize: 14, color: COLORS.text, boxSizing: 'border-box' } as any} />
+                      ) : (
+                        <TextInput style={styles.dateInput} value={reportCustomEnd} onChangeText={setReportCustomEnd} placeholder="YYYY-MM-DD" placeholderTextColor={COLORS.textLight} />
+                      )}
+                    </View>
+                  </View>
+                )}
+
+                {reportError ? <Text style={styles.reportError}>{reportError}</Text> : null}
+
+                <TouchableOpacity
+                  style={[styles.generateBtn, reportGenerating && { opacity: 0.6 }]}
+                  onPress={handleGenerateReport}
+                  disabled={reportGenerating}
+                >
+                  {reportGenerating
+                    ? <ActivityIndicator size="small" color={COLORS.white} />
+                    : <BarChart2 size={16} color={COLORS.white} />}
+                  <Text style={styles.generateBtnText}>{reportGenerating ? 'Generating...' : 'Generate Report'}</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                {/* Report preview */}
+                <View style={styles.reportSummaryBox}>
+                  <Text style={styles.reportPeriodLabel}>
+                    {rangeLabel(reportData.range, reportData.start, reportData.end)}
+                  </Text>
+                  <View style={styles.kpiRow}>
+                    <View style={styles.kpiBox}><Text style={styles.kpiVal}>{reportData.total}</Text><Text style={styles.kpiLabel}>Total</Text></View>
+                    {Object.entries(reportData.byStatus).slice(0, 3).map(([s, c]) => (
+                      <View key={s} style={styles.kpiBox}><Text style={styles.kpiVal}>{c}</Text><Text style={styles.kpiLabel}>{s}</Text></View>
+                    ))}
+                  </View>
+
+                  <Text style={styles.reportSubheading}>By Mode</Text>
+                  {Object.entries(reportData.byMode).map(([m, c]) => (
+                    <View key={m} style={styles.reportRow}>
+                      <Text style={styles.reportRowLabel}>{m}</Text>
+                      <Text style={styles.reportRowVal}>{c}</Text>
+                    </View>
+                  ))}
+
+                  <Text style={styles.reportSubheading}>Salesperson Performance</Text>
+                  {Object.entries(reportData.bySalesperson).map(([sp, d]) => (
+                    <View key={sp} style={styles.reportRow}>
+                      <Text style={styles.reportRowLabel}>{sp}</Text>
+                      <Text style={styles.reportRowVal}>{d.total} enquiries · {d.converted} converted</Text>
+                    </View>
+                  ))}
+                </View>
+
+                <View style={styles.reportActions}>
+                  <TouchableOpacity style={styles.reportActionBtn} onPress={handleViewReportPdf}>
+                    <FileDown size={15} color={COLORS.primary} />
+                    <Text style={styles.reportActionBtnText}>View / Print PDF</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.reportActionBtn} onPress={handleExportReportExcel}>
+                    <FileDown size={15} color={COLORS.success} />
+                    <Text style={[styles.reportActionBtnText, { color: COLORS.success }]}>Export Excel</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity style={styles.backToOptionsBtn} onPress={() => setReportData(null)}>
+                  <Text style={styles.backToOptionsBtnText}>← Change Report Type</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -1089,4 +1265,156 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.primary,
   },
+  // Report button
+  reportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  reportBtnText: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalBox: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 480,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text },
+  modalSectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 10,
+    marginTop: 16,
+  },
+
+  // Radio
+  radioRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 8,
+  },
+  radioRowActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryLight },
+  radioCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: COLORS.textLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioCircleActive: { borderColor: COLORS.primary },
+  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.primary },
+  radioLabel: { fontSize: 14, color: COLORS.text },
+  radioLabelActive: { fontWeight: '700', color: COLORS.primary },
+
+  // Custom date
+  customDateRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  dateInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: COLORS.text,
+  },
+
+  reportError: { fontSize: 12, color: COLORS.danger, marginTop: 8, marginBottom: 4 },
+
+  generateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginTop: 20,
+  },
+  generateBtnText: { fontSize: 15, fontWeight: '700', color: COLORS.white },
+
+  // Report results
+  reportSummaryBox: { maxHeight: 360 },
+  reportPeriodLabel: { fontSize: 13, color: COLORS.textMuted, marginBottom: 16, fontStyle: 'italic' },
+  kpiRow: { flexDirection: 'row', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
+  kpiBox: {
+    flex: 1,
+    minWidth: 70,
+    backgroundColor: COLORS.gray50,
+    borderRadius: 10,
+    padding: 12,
+    alignItems: 'center',
+  },
+  kpiVal: { fontSize: 22, fontWeight: '800', color: COLORS.primary },
+  kpiLabel: { fontSize: 10, color: COLORS.textMuted, marginTop: 2, textTransform: 'uppercase' },
+  reportSubheading: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginTop: 14,
+    marginBottom: 6,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingTop: 10,
+  },
+  reportRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  reportRowLabel: { fontSize: 13, color: COLORS.text },
+  reportRowVal: { fontSize: 13, color: COLORS.textMuted },
+  reportActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  reportActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.gray50,
+  },
+  reportActionBtnText: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
+  backToOptionsBtn: { alignItems: 'center', marginTop: 12, paddingVertical: 8 },
+  backToOptionsBtnText: { fontSize: 13, color: COLORS.textMuted },
+
 });

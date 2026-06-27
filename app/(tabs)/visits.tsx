@@ -44,11 +44,21 @@ import {
   TrendingUp,
   X,
   FileText,
+  BarChart2,
+  FileDown,
 } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
+import {
+  computeVisitReport,
+  exportVisitExcel,
+  generateVisitPdfHtml,
+  openPdfInBrowser,
+  rangeLabel,
+  type ReportRange,
+} from '@/lib/reportService';
 import { EmptyState } from '@/components/EmptyState';
 import { resolveSalespersonSession } from '@/lib/salesperson-session';
 import { hasRole } from '@/lib/permissions';
@@ -1092,6 +1102,44 @@ function VisitDetailModal({ visit, onClose }: { visit: VisitRow | null; onClose:
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
+
+
+// ─── Report Modal Styles ──────────────────────────────────────────────────────
+
+const rs = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  box: { backgroundColor: C.white, borderRadius: 16, padding: 24, width: '100%', maxWidth: 480, maxHeight: '90%' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  title: { fontSize: 18, fontWeight: '800', color: C.text },
+  sectionLabel: { fontSize: 11, fontWeight: '700', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 16 },
+  radioRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: C.border, marginBottom: 8 },
+  radioRowActive: { borderColor: C.primary, backgroundColor: C.primaryLight ?? '#e8f0fb' },
+  radioCircle: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: C.textMuted, alignItems: 'center', justifyContent: 'center' },
+  radioCircleActive: { borderColor: C.primary },
+  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.primary },
+  radioLabel: { fontSize: 14, color: C.text },
+  radioLabelActive: { fontWeight: '700', color: C.primary },
+  customRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  dateInput: { borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: C.text },
+  error: { fontSize: 12, color: C.lost ?? '#d63939', marginTop: 8 },
+  generateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.primary, paddingVertical: 14, borderRadius: 10, marginTop: 20 },
+  generateBtnText: { fontSize: 15, fontWeight: '700', color: C.white },
+  summaryBox: { maxHeight: 360 },
+  periodLabel: { fontSize: 13, color: C.textMuted, marginBottom: 16, fontStyle: 'italic' },
+  kpiRow: { flexDirection: 'row', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
+  kpiBox: { flex: 1, minWidth: 70, backgroundColor: C.surfaceLowest ?? '#f8fafc', borderRadius: 10, padding: 12, alignItems: 'center' },
+  kpiVal: { fontSize: 22, fontWeight: '800', color: C.primary },
+  kpiLabel: { fontSize: 10, color: C.textMuted, marginTop: 2, textTransform: 'uppercase' },
+  subheading: { fontSize: 12, fontWeight: '700', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 14, marginBottom: 6, borderTopWidth: 1, borderTopColor: C.border, paddingTop: 10 },
+  dataRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.border },
+  dataLabel: { fontSize: 13, color: C.text },
+  dataVal: { fontSize: 13, color: C.textMuted },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceLowest ?? '#f8fafc' },
+  actionBtnText: { fontSize: 13, fontWeight: '700', color: C.primary },
+  backBtn: { alignItems: 'center', marginTop: 12, paddingVertical: 8 },
+  backBtnText: { fontSize: 13, color: C.textMuted },
+});
 export default function CustomerVisitsScreen() {
   const [visits, setVisits] = useState<VisitRow[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
@@ -1102,6 +1150,13 @@ export default function CustomerVisitsScreen() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [showForm, setShowForm] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportRange, setReportRange] = useState<ReportRange>('monthly');
+  const [reportCustomStart, setReportCustomStart] = useState('');
+  const [reportCustomEnd, setReportCustomEnd] = useState('');
+  const [reportData, setReportData] = useState<ReturnType<typeof computeVisitReport> | null>(null);
+  const [reportGenerating, setReportGenerating] = useState(false);
+  const [reportError, setReportError] = useState('');
   const [detailVisit, setDetailVisit] = useState<VisitRow | null>(null);
 
   // Filter panel
@@ -1322,7 +1377,11 @@ export default function CustomerVisitsScreen() {
           <Text style={s.pageTitle}>Customer Visits</Text>
           <Text style={s.pageSub}>Manage site visits · capture proof · track movements</Text>
         </View>
-        <TouchableOpacity style={s.logBtn} onPress={() => setShowForm(true)} activeOpacity={0.9}>
+        <TouchableOpacity style={s.reportBtn} onPress={() => { setReportData(null); setShowReportModal(true); }}>
+            <BarChart2 size={15} color={C.primary} />
+            <Text style={s.reportBtnText}>Generate Report</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.logBtn} onPress={() => setShowForm(true)} activeOpacity={0.9}>
           <Plus size={16} color={C.onPrimary} />
           <Text style={s.logBtnText}>Log New Visit</Text>
         </TouchableOpacity>
@@ -1571,6 +1630,20 @@ const s = StyleSheet.create({
   },
   pageTitle: { fontSize: 22, fontWeight: '700', color: C.text, letterSpacing: -0.4 },
   pageSub: { fontSize: 13, color: C.textMuted, marginTop: 3 },
+
+  reportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: C.white,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.primary,
+    marginRight: 8,
+  },
+  reportBtnText: { fontSize: 13, fontWeight: '700', color: C.primary },
   logBtn: {
     flexDirection: 'row',
     alignItems: 'center',
