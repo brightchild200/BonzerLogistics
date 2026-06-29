@@ -22,6 +22,7 @@ import {
 } from '@/lib/types';
 import { EmptyState } from '@/components/EmptyState';
 import { StatusBadge } from '@/components/Badge';
+import { MetricCard } from '@/components/MetricCard';
 import {
   mapNotificationLog,
   mapSalesAttendance,
@@ -30,6 +31,10 @@ import {
   mapUserDisplayName,
 } from '@/lib/salesperson-mappers';
 import { resolveSalespersonSession } from '@/lib/salesperson-session';
+import { formatClockTime } from '@/lib/date';
+import type { SalesAttendanceInsert } from '@/lib/schema';
+import { LogIn, LogOut, CheckCircle, AlertCircle, Navigation } from 'lucide-react-native';
+
 
 type DashboardMetrics = {
   totalFollowups: number;
@@ -78,21 +83,6 @@ function dateKey(value: string | null | undefined) {
   return value ? value.slice(0, 10) : '';
 }
 
-function formatClock(value: string | null | undefined) {
-  if (!value) return 'Not set';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(parsed);
-}
-
-function formatLocation(row: SalesAttendanceRow | null) {
-  if (!row) return 'Location not captured';
-  return row.site_name || row.site_address || 'Location not captured';
-}
-
 function formatWeekday(value: Date) {
   return new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(value);
 }
@@ -104,21 +94,6 @@ function getMonthBounds(date = new Date()) {
     start: start.toISOString().slice(0, 10),
     next: next.toISOString().slice(0, 10),
   };
-}
-
-function toneColor(tone: string) {
-  switch (tone) {
-    case 'success':
-      return COLORS.success;
-    case 'warning':
-      return COLORS.warning;
-    case 'danger':
-      return COLORS.danger;
-    case 'info':
-      return COLORS.info;
-    default:
-      return COLORS.textLight;
-  }
 }
 
 function DashboardSection({
@@ -207,54 +182,112 @@ function MetricTile({
   );
 }
 
+const ATTENDANCE_BG_CHECKED_IN = '#c1f4c4';
+const ATTENDANCE_BG_NOT_CHECKED_IN = '#fa787c';
+
+function formatDashboardCheckInTime(value: string | null | undefined) {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '-';
+  return formatClockTime(d);
+}
+
+function formatDashboardCheckOutTime(value: string | null | undefined) {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '-';
+  return formatClockTime(d);
+}
+
 function CheckInTile({
   attendance,
   attendanceRow,
   checkedInToday,
+  isChecking,
+  onPressCheckIn,
+  onPressCheckOut,
 }: {
   attendance: SalesAttendanceCard | null;
   attendanceRow: SalesAttendanceRow | null;
   checkedInToday: boolean;
+  isChecking: boolean;
+  onPressCheckIn: () => void;
+  onPressCheckOut: () => void;
 }) {
-  const statusTone = attendance?.statusTone ?? 'warning';
-  const statusColor = toneColor(statusTone);
-  const checkInTime = formatClock(attendanceRow?.check_in_at);
-  const location = formatLocation(attendanceRow);
+  const isCheckedIn = !!attendanceRow?.check_in_at;
+  const isCheckedOut = !!attendanceRow?.check_out_at;
+
+  const cardBgColor = checkedInToday ? ATTENDANCE_BG_CHECKED_IN : ATTENDANCE_BG_NOT_CHECKED_IN;
+
+  const checkInTime = formatClockTime(attendanceRow?.check_in_at ?? '');
+  const checkOutTime = formatClockTime(attendanceRow?.check_out_at ?? '');
 
   return (
-    <View style={styles.checkInCard}>
+    <View style={[styles.checkInCard, { backgroundColor: cardBgColor }]}>
       <View style={styles.checkInHeader}>
-        <Text style={styles.metricLabel}>Checked In</Text>
-        <View style={styles.checkInBadge}>
-          <View style={[styles.checkInDot, { backgroundColor: checkedInToday ? COLORS.success : COLORS.warning }]} />
-          <Text style={[styles.checkInBadgeText, { color: checkedInToday ? COLORS.success : COLORS.warning }]}>
-            {checkedInToday ? 'Today' : 'Awaiting'}
+        <Text style={[styles.metricLabel, { color: COLORS.primary }]}>Attendance</Text>
+        <View style={[styles.checkInBadge, { backgroundColor: COLORS.gray50 }]}>
+          <Text style={[styles.checkInBadgeText, { color: COLORS.primary }]}>
+            {isCheckedOut ? 'Checked out' : isCheckedIn ? 'Checked in' : 'Not checked in'}
           </Text>
         </View>
       </View>
 
-      {attendance ? (
-        <View style={styles.checkInBody}>
-          <View style={styles.checkInStatusRow}>
-            <Text style={styles.checkInTime}>{checkInTime}</Text>
-            <StatusBadge status={attendance.statusLabel} />
-          </View>
-          <View style={styles.checkInLocationRow}>
-            <MapPinned size={16} color={statusColor} />
-            <Text style={styles.checkInLocationText} numberOfLines={1}>
-              {location}
-            </Text>
-          </View>
-          <Text style={styles.checkInSubtitle} numberOfLines={2}>
-            {attendanceRow?.site_address || attendance.subtitle}
+      <View style={styles.checkInBody}>
+        <View style={styles.checkInStatusRow}>
+          <Text style={styles.checkInTime}>
+            {isCheckedOut ? `In: ${checkInTime} • Out: ${checkOutTime}` : `In: ${isCheckedIn ? checkInTime : '-'}`}
           </Text>
+          <StatusBadge
+            status={
+              attendance?.statusLabel ??
+              (isCheckedOut ? 'Checked out' : isCheckedIn ? 'Checked in' : 'Not in')
+            }
+          />
         </View>
-      ) : (
-        <View style={styles.checkInEmpty}>
-          <ShieldCheck size={22} color={COLORS.textLight} />
-          <Text style={styles.checkInEmptyText}>No attendance record today</Text>
-        </View>
-      )}
+
+        {!isCheckedIn ? (
+          <Pressable
+            style={[styles.checkBtn, styles.checkInBtn]}
+            onPress={onPressCheckIn}
+            accessibilityRole="button"
+            accessibilityLabel="Check In"
+          >
+            <Text style={styles.checkBtnText}>Check In</Text>
+          </Pressable>
+        ) : isCheckedOut ? (
+          <View style={styles.checkedOutPill}>
+            <Text style={styles.checkedOutPillText}>Day complete</Text>
+          </View>
+        ) : (
+          <View style={styles.actionRow}>
+            <Pressable
+              style={[styles.checkBtn, styles.checkBtnMuted, styles.disabled]}
+              disabled
+              accessibilityRole="button"
+              accessibilityLabel="Check In (already checked in)"
+            >
+              <Text style={styles.checkBtnTextMuted}>Check In</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.checkBtn, styles.checkOutBtn, isChecking && styles.disabled]}
+              onPress={onPressCheckOut}
+              disabled={isChecking}
+              accessibilityRole="button"
+              accessibilityLabel="Check Out"
+            >
+              <Text style={styles.checkBtnText}>Check Out</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {!attendance ? (
+          <View style={styles.checkInEmpty}>
+            {/* <ShieldCheck size={22} color={COLORS.textLight} /> */}
+            {/* <Text style={styles.checkInEmptyText}>No attendance record today</Text> */}
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -387,11 +420,7 @@ export default function DashboardScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const { data: auth, error: authErr } = await supabase.auth.getUser();
-      if (authErr) {
-        console.warn('[dashboard] auth lookup failed:', authErr);
-      }
-
+      const { data: auth } = await supabase.auth.getUser();
       const session = await resolveSalespersonSession(auth.user?.email ?? null);
       const salespersonRow = session.salesperson;
       setSalesperson(salespersonRow ? mapSalesPerson(salespersonRow) : null);
@@ -412,9 +441,22 @@ export default function DashboardScreen() {
       const monthBounds = getMonthBounds();
 
       const [followupsRes, attendanceRes, notificationsRes] = await Promise.all([
-        supabase.from('sales_followups').select('*').eq('sales_person_id', salespersonRow.id).order('followup_at', { ascending: true }),
-        supabase.from('sales_attendance').select('*').eq('sales_person_id', salespersonRow.id).order('attendance_date', { ascending: false }),
-        supabase.from('notification_logs').select('*').eq('sales_person_id', salespersonRow.id).order('created_at', { ascending: false }).limit(8),
+        supabase
+          .from('sales_followups')
+          .select('*')
+          .eq('sales_person_id', salespersonRow.id)
+          .order('followup_at', { ascending: true }),
+        supabase
+          .from('sales_attendance')
+          .select('*')
+          .eq('sales_person_id', salespersonRow.id)
+          .order('attendance_date', { ascending: false }),
+        supabase
+          .from('notification_logs')
+          .select('*')
+          .eq('sales_person_id', salespersonRow.id)
+          .order('created_at', { ascending: false })
+          .limit(8),
       ]);
 
       const [enquiriesRes, jobsRes] = await Promise.all([
@@ -433,12 +475,6 @@ export default function DashboardScreen() {
           .lt('enq_date', monthBounds.next)
           .order('enq_date', { ascending: false }),
       ]);
-
-      if (followupsRes.error) console.error('[dashboard] sales_followups error:', followupsRes.error);
-      if (attendanceRes.error) console.error('[dashboard] sales_attendance error:', attendanceRes.error);
-      if (notificationsRes.error) console.error('[dashboard] notification_logs error:', notificationsRes.error);
-      if (enquiriesRes.error) console.error('[dashboard] enquiries error:', enquiriesRes.error);
-      if (jobsRes.error) console.error('[dashboard] jobs error:', jobsRes.error);
 
       const followupRows = followupsRes.data || [];
       const attendanceData = attendanceRes.data || [];
@@ -473,8 +509,6 @@ export default function DashboardScreen() {
   }
 
   const displayName = salesperson?.name || mapUserDisplayName(null, null);
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   const metrics = useMemo<DashboardMetrics>(() => {
     const todayKey = new Date().toISOString().slice(0, 10);
@@ -495,13 +529,10 @@ export default function DashboardScreen() {
   }, [attendanceRows, enquiryRows, followups]);
 
   const upcomingFollowups = useMemo(() => {
-    // Sort ascending by scheduled date/time so the soonest follow-up always
-    // appears first, regardless of the order data arrives in.
-    const sorted = [...followups].sort(
-      (a, b) => getFollowupTimestamp(a) - getFollowupTimestamp(b),
-    );
+    const sorted = [...followups].sort((a, b) => getFollowupTimestamp(a) - getFollowupTimestamp(b));
     return sorted.slice(0, 3).map(mapSalesFollowup);
   }, [followups]);
+
   const recentAlerts = useMemo(() => notificationRows.slice(0, 3).map(mapNotificationLog), [notificationRows]);
 
   const weeklySeries = useMemo(() => {
@@ -554,16 +585,32 @@ export default function DashboardScreen() {
 
           <View style={styles.pageHeader}>
             <View style={styles.pageHeaderCopy}>
-              <Text style={styles.pageTitle}>{displayName}</Text>
+              <Text style={styles.pageTitle}> Hello! {displayName}</Text>
               <Text style={styles.pageSubtitle}>Here&apos;s your performance for today.</Text>
             </View>
           </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.metricScroll}
-          >
+
+          <View style={styles.metricGrid}>
+
+          <CheckInTile
+              attendance={todayAttendance}
+              attendanceRow={todayAttendanceRow}
+              checkedInToday={metrics.checkedInToday}
+              isChecking={false}
+              onPressCheckIn={async () => {
+                const { checkInToday } = await import('@/lib/attendanceActions');
+                await checkInToday({ notes: '' });
+                await loadData();
+              }}
+              onPressCheckOut={async () => {
+                const { checkOutToday } = await import('@/lib/attendanceActions');
+                if (!todayAttendanceRow) return;
+                await checkOutToday({ todayAttendanceRow });
+                await loadData();
+              }}
+            />
+            
             <MetricTile
               title="Follow-Ups"
               value={metrics.totalFollowups}
@@ -572,6 +619,8 @@ export default function DashboardScreen() {
               icon={<CalendarClock size={22} color={COLORS.primary} />}
               onPress={() => router.push('/(tabs)/followups')}
             />
+
+
             <MetricTile
               title="Visits"
               value={metrics.visitsThisMonth}
@@ -580,6 +629,7 @@ export default function DashboardScreen() {
               icon={<MapPinned size={22} color={COLORS.warning} />}
               onPress={() => router.push('/(tabs)/attendance')}
             />
+
             <MetricTile
               title="Enquiries"
               value={metrics.enquiriesThisMonth}
@@ -588,8 +638,8 @@ export default function DashboardScreen() {
               icon={<FileText size={22} color={COLORS.success} />}
               onPress={() => router.push('/(tabs)/enquiries')}
             />
-            <CheckInTile attendance={todayAttendance} attendanceRow={todayAttendanceRow} checkedInToday={metrics.checkedInToday} />
-          </ScrollView>
+            
+          </View>
 
           <ChartSection series={weeklySeries} showDetailedAnalytics={ENABLE_DETAILED_ANALYTICS} />
 
@@ -655,7 +705,7 @@ export default function DashboardScreen() {
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>
-              {lastSyncedAt ? `Last synced ${formatClock(lastSyncedAt)}` : 'Waiting for data sync'}
+              {lastSyncedAt ? `Last synced ${formatClockTime(new Date(lastSyncedAt))}` : 'Waiting for data sync'}
             </Text>
             <View style={styles.footerLinks}>
               <Text style={styles.footerLink}>System Status</Text>
@@ -716,13 +766,6 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '600',
   },
-  announcementClose: {
-    width: 28,
-    height: 28,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   pageHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -747,58 +790,30 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: COLORS.textMuted,
   },
-  headerButtonStack: {
-    flexDirection: 'column',
-    gap: 10,
-  },
-  headerButton: {
-    minHeight: 40,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    alignSelf: 'stretch',
-  },
-  headerButtonSecondary: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  headerButtonPrimary: {
-    backgroundColor: COLORS.primary,
-  },
-  headerButtonPressed: {
-    opacity: 0.92,
-    transform: [{ scale: 0.98 }],
-  },
-  headerButtonSecondaryText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.textMuted,
-  },
-  headerButtonPrimaryText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.white,
-  },
+  // metricScroll: {
+  //   flexDirection: 'row',
+  //   alignItems: 'stretch',
+  //   gap: 12,
+  //   paddingRight: 2,
+  // },
+
   metricGrid: {
     flexDirection: 'row',
-    gap: 12,
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    // alignItems: 'stretch',
+    gap: 16,
   },
-  metricScroll: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: 12,
-    paddingRight: 2,
-  },
+  
   metricCard: {
-    width: 250,
-    minWidth: 250,
-    flexGrow: 0,
+    flexBasis: 0,
+    flexGrow: 1,
     flexShrink: 0,
+    // width: 250,
+    // minWidth: 250,
+    width: '23.5%',
+    minWidth: 220,
+   
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -849,16 +864,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.text,
   },
+
   checkInCard: {
+    flexBasis: 0,
     flexGrow: 1,
-    flexBasis: 280,
-    minWidth: 240,
+    // flexBasis: 280,
+    // minWidth: 240,
     backgroundColor: '#f0edda',
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 12,
     padding: 18,
     gap: 12,
+    width: '23.5%',
+    minWidth: 220,
     shadowColor: '#0f172a',
     shadowOpacity: 0.05,
     shadowRadius: 14,
@@ -880,11 +899,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: COLORS.gray50,
   },
-  checkInDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-  },
   checkInBadgeText: {
     fontSize: 12,
     fontWeight: '700',
@@ -904,33 +918,73 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontWeight: '600',
   },
-  checkInLocationRow: {
+  checkInCTAContainer: {
+    marginTop: 4,
+  },
+  checkBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    gap: 10,
+    height: 52,
+    borderRadius: 10,
+    paddingHorizontal: 10,
   },
-  checkInLocationText: {
-    flex: 1,
+  checkInBtn: {
+    backgroundColor: COLORS.primary,
+  },
+  checkOutBtn: {
+    backgroundColor: COLORS.danger,
+  },
+  checkBtnMuted: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.gray50,
+  },
+  disabled: {
+    opacity: 0.7,
+  },
+  checkBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.white,
+  },
+  checkBtnTextMuted: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.textLight,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  checkedOutPill: {
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: COLORS.successLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkedOutPillText: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.success,
   },
-  checkInSubtitle: {
-    fontSize: 12,
-    lineHeight: 18,
-    color: COLORS.text,
-  },
-  checkInEmpty: {
-    minHeight: 72,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  checkInEmptyText: {
-    fontSize: 13,
-    color: COLORS.text,
-    fontWeight: '600',
-  },
+  // checkInEmpty: {
+  //   marginTop: 8,
+  //   minHeight: 72,
+  //   alignItems: 'flex-start',
+  //   justifyContent: 'center',
+  //   gap: 8,
+  // },
+  // checkInEmptyText: {
+  //   fontSize: 13,
+  //   color: COLORS.text,
+  //   fontWeight: '600',
+  // },
+
   chartCard: {
     backgroundColor: COLORS.white,
     borderWidth: 1,
@@ -950,6 +1004,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 14,
     flexWrap: 'wrap',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    lineHeight: 26,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  sectionSubtitle: {
+    marginTop: 2,
+    fontSize: 13,
+    lineHeight: 18,
+    color: COLORS.text,
   },
   legendRow: {
     flexDirection: 'row',
@@ -1035,6 +1101,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.primary,
   },
+
   bottomGrid: {
     flexDirection: 'row',
     gap: 12,
@@ -1052,18 +1119,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 10,
     flexWrap: 'wrap',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    lineHeight: 26,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  sectionSubtitle: {
-    marginTop: 2,
-    fontSize: 13,
-    lineHeight: 18,
-    color: COLORS.text,
   },
   sectionAction: {
     flexDirection: 'row',
@@ -1090,6 +1145,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 1,
   },
+
   cardList: {
     padding: 12,
   },
@@ -1126,6 +1182,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontWeight: '600',
   },
+
   timeline: {
     padding: 16,
     gap: 18,
@@ -1159,39 +1216,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.text,
   },
-  breakdownStack: {
-    gap: 14,
-    padding: 16,
-  },
-  breakdownItem: {
-    gap: 8,
-  },
-  breakdownHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  breakdownLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  breakdownValue: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  breakdownTrack: {
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: COLORS.gray100,
-    overflow: 'hidden',
-  },
-  breakdownFill: {
-    height: '100%',
-    borderRadius: 999,
-  },
+
   footer: {
     paddingTop: 6,
     paddingBottom: 12,
@@ -1219,3 +1244,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+

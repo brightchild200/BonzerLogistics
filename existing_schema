@@ -880,3 +880,73 @@ ON port_master
 FOR INSERT
 TO authenticated
 WITH CHECK (true);
+
+
+
+CREATE OR REPLACE FUNCTION public.get_or_create_customer(
+    p_name varchar,
+    p_gst varchar,
+    p_address varchar,
+    p_sales_person_id integer
+)
+RETURNS integer
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_customer_id integer;
+    v_name varchar;
+    v_gst varchar;
+BEGIN
+    v_name := trim(p_name);
+    v_gst := upper(nullif(trim(p_gst), ''));
+
+    ------------------------------------------------------------------
+    -- 1. Check GST
+    ------------------------------------------------------------------
+    IF v_gst IS NOT NULL THEN
+        SELECT id
+        INTO v_customer_id
+        FROM customer_master
+        WHERE upper(trim(gst)) = v_gst
+        LIMIT 1;
+
+        IF FOUND THEN
+            RETURN v_customer_id;
+        END IF;
+    END IF;
+
+    ------------------------------------------------------------------
+    -- 2. Check Name
+    ------------------------------------------------------------------
+    SELECT id
+    INTO v_customer_id
+    FROM customer_master
+    WHERE lower(trim(name)) = lower(v_name)
+    LIMIT 1;
+
+    IF FOUND THEN
+        RETURN v_customer_id;
+    END IF;
+
+    ------------------------------------------------------------------
+    -- 3. Create Customer
+    ------------------------------------------------------------------
+    INSERT INTO customer_master (
+        name,
+        gst,
+        address,
+        sales_person_id
+    )
+    VALUES (
+        v_name,
+        v_gst,
+        nullif(trim(p_address), ''),
+        p_sales_person_id
+    )
+    RETURNING id
+    INTO v_customer_id;
+
+    RETURN v_customer_id;
+
+END;
+$$;

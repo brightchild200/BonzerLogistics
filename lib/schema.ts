@@ -815,7 +815,176 @@ export type Database = {
           }
         ];
       };
+      enquiries: {
+        Row: {
+          id: number;
+          enquiry_no: string | null;
+          company_id: number | null;
+          enq_date: string | null;
+          customer_id: number | null;
+          customer_name: string | null;
+          customer_address: string | null;
+          customer_gst: string | null;
+          shipper_id: number | null;
+          shipper: string | null;
+          cnee_id: number | null;
+          cnee: string | null;
+          sales_person_id: number | null;
+          seals_person: string | null;
+          mode_id: number | null;
+          pol_country: string | null;
+          pol: string | null;
+          pod_country: string | null;
+          pod: string | null;
+          commodity: string | null;
+          packages: string | null;
+          packages_unit: string | null;
+          gross_weight: string | null;
+          gross_weight_unit: string | null;
+          cbm: string | null;
+          usd_exchange_rate: number | null;
+          eur_exchange_rate: number | null;
+          gbp_exchange_rate: number | null;
+          status: string | null;
+          cancel_remark: string | null;
+          job_id: number | null;
+          created_at: string;
+          updated_at: string;
+          assigned_to_user_id: number | null;
+        };
+        Insert: {
+          id?: number;
+          enquiry_no?: string | null;
+          company_id?: number | null;
+          enq_date?: string | null;
+          customer_id?: number | null;
+          customer_name?: string | null;
+          customer_address?: string | null;
+          customer_gst?: string | null;
+          shipper_id?: number | null;
+          shipper?: string | null;
+          cnee_id?: number | null;
+          cnee?: string | null;
+          sales_person_id?: number | null;
+          seals_person?: string | null;
+          mode_id?: number | null;
+          pol_country?: string | null;
+          pol?: string | null;
+          pod_country?: string | null;
+          pod?: string | null;
+          commodity?: string | null;
+          packages?: string | null;
+          packages_unit?: string | null;
+          gross_weight?: string | null;
+          gross_weight_unit?: string | null;
+          cbm?: string | null;
+          usd_exchange_rate?: number | null;
+          eur_exchange_rate?: number | null;
+          gbp_exchange_rate?: number | null;
+          status?: string | null;
+          cancel_remark?: string | null;
+          job_id?: number | null;
+          created_at?: string;
+          updated_at?: string;
+          assigned_to_user_id?: number | null;
+        };
+        Update: {
+          id?: number;
+          enquiry_no?: string | null;
+          company_id?: number | null;
+          enq_date?: string | null;
+          customer_id?: number | null;
+          customer_name?: string | null;
+          customer_address?: string | null;
+          customer_gst?: string | null;
+          shipper_id?: number | null;
+          shipper?: string | null;
+          cnee_id?: number | null;
+          cnee?: string | null;
+          sales_person_id?: number | null;
+          seals_person?: string | null;
+          mode_id?: number | null;
+          pol_country?: string | null;
+          pol?: string | null;
+          pod_country?: string | null;
+          pod?: string | null;
+          commodity?: string | null;
+          packages?: string | null;
+          packages_unit?: string | null;
+          gross_weight?: string | null;
+          gross_weight_unit?: string | null;
+          cbm?: string | null;
+          usd_exchange_rate?: number | null;
+          eur_exchange_rate?: number | null;
+          gbp_exchange_rate?: number | null;
+          status?: string | null;
+          cancel_remark?: string | null;
+          job_id?: number | null;
+          created_at?: string;
+          updated_at?: string;
+          assigned_to_user_id?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'fk_enquiries_cnee';
+            columns: ['cnee_id'];
+            isOneToOne: false;
+            referencedRelation: 'consignee_master';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'fk_enquiries_company';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'fk_enquiries_customer';
+            columns: ['customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'customer_master';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'fk_enquiries_job';
+            columns: ['job_id'];
+            isOneToOne: false;
+            referencedRelation: 'jobs';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'fk_enquiries_mode';
+            columns: ['mode_id'];
+            isOneToOne: false;
+            referencedRelation: 'mode_master';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'fk_enquiries_sales_person';
+            columns: ['sales_person_id'];
+            isOneToOne: false;
+            referencedRelation: 'sales_persons';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'enquiries_assigned_to_user_id_fkey';
+            columns: ['assigned_to_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'fk_enquiries_shipper';
+            columns: ['shipper_id'];
+            isOneToOne: false;
+            referencedRelation: 'shipper_master';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       quotation_items: {
+
         Row: {
           id: number;
           quotation_id: number;
@@ -952,3 +1121,43 @@ export type QuotationUpdate = Update<'quotations'>;
 export type QuotationItemRow = Row<'quotation_items'>;
 export type QuotationItemInsert = Insert<'quotation_items'>;
 export type QuotationItemUpdate = Update<'quotation_items'>;
+
+// Enquiries (used by /app/enquiry/* screens)
+export type EnquiryRow = {
+  id: number;
+  enquiry_no: string | null;
+  enq_date: string | null;
+  customer_id: number | null;
+  customer_name: string | null;
+  customer_address: string | null;
+  customer_gst: string | null;
+  shipper_id: number | null;
+  shipper: string | null;
+  cnee_id: number | null;
+  cnee: string | null;
+  sales_person_id: number | null;
+  seals_person: string | null;
+  mode_id: number | null;
+  pol_country: string | null;
+  pol: string | null;
+  pod_country: string | null;
+  pod: string | null;
+  commodity: string | null;
+  packages: string | null;
+  packages_unit: string | null;
+  gross_weight: string | null;
+  gross_weight_unit: string | null;
+  cbm: string | null;
+  status: string | null;
+  cancel_remark: string | null;
+  job_id: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EnquiryInsert = Partial<Omit<EnquiryRow, 'id' | 'created_at' | 'updated_at'>> & {
+  id?: number;
+  created_at?: string;
+  updated_at?: string;
+};
+

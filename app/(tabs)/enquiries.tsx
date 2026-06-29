@@ -44,10 +44,15 @@ import { StatusBadge } from '@/components/Badge';
 
 // Mode mapping (from mode_master table)
 const MODE_MAP: Record<number, string> = {
-  1: 'Sea Export',
-  2: 'Sea Import',
-  3: 'Air Export',
-  4: 'Air Import',
+  1: 'Air Import',
+  2: 'Air Export',
+  3: 'Sea LCL Import',
+  4: 'Sea FCL Import',
+  5: 'Sea LCL Export',
+  6: 'Sea FCL Export',
+  7: 'Courier Import',
+  8: 'Courier Export',
+  9: 'Ex-Bond',
 };
 
 // Status options for filter
@@ -114,9 +119,10 @@ type EnquiryRowProps = {
   selected: boolean;
   onSelect: () => void;
   onOpen: () => void;
+  showSalesperson?: boolean;
 };
 
-function EnquiryRow({ enquiry, selected, onSelect, onOpen }: EnquiryRowProps) {
+function EnquiryRow({ enquiry, selected, onSelect, onOpen, showSalesperson }: EnquiryRowProps) {
   const lastTap = React.useRef<number>(0);
   const [hovered, setHovered] = React.useState(false);
 
@@ -157,9 +163,14 @@ function EnquiryRow({ enquiry, selected, onSelect, onOpen }: EnquiryRowProps) {
       <Text style={[styles.tableCell, styles.colCustomer, selected && styles.tableCellSelected]} numberOfLines={1}>
         {enquiry.customer_name || 'Unknown'}
       </Text>
-      <Text style={[styles.tableCell, styles.colSalesperson, selected && styles.tableCellSelected]} numberOfLines={1}>
-        {enquiry.salesperson_name || 'Unassigned'}
-      </Text>
+      {showSalesperson && (
+  <Text
+    style={[styles.tableCell, styles.colSalesperson, selected && styles.tableCellSelected]}
+    numberOfLines={1}
+  >
+    {enquiry.salesperson_name || "Unassigned"}
+  </Text>
+)}
       <Text style={[styles.tableCell, styles.colMode, selected && styles.tableCellSelected]}>
         {enquiry.mode_name || 'N/A'}
       </Text>
@@ -191,7 +202,7 @@ export default function EnquiriesScreen() {
   const [filterStatus, setFilterStatus] = useState('All');
   const [showFilters, setShowFilters] = useState(false);
 
-  
+
 
   // Filter modal visibility
   const [filterModalVisible, setFilterModalVisible] = useState(false);
@@ -205,6 +216,13 @@ export default function EnquiriesScreen() {
   const [reportData, setReportData] = useState<ReturnType<typeof computeEnquiryReport> | null>(null);
   const [reportGenerating, setReportGenerating] = useState(false);
   const [reportError, setReportError] = useState('');
+
+
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isSalesManager, setIsSalesManager] = useState(false);
+  const [isSalesperson, setIsSalesperson] = useState(false);
+
+  
 
   // ── Data loading ──────────────────────────────────────────────────────────
 
@@ -226,11 +244,25 @@ export default function EnquiriesScreen() {
         hasAppUser: !!session.appUser,
       });
 
+      
+      console.log("========== SESSION ==========");
+      console.log(session);
+      console.log("Roles:", session.roles);
+      console.log("isSalesperson:", hasRole(session.roles, "salesperson"));
+      console.log("=============================");
+
       if (!session.salesperson && !hasRole(session.roles, 'admin')) {
         setSessionError('No salesperson profile is linked to this account yet.');
         setEnquiries([]);
         return;
       }
+
+
+      setIsAdmin(hasRole(session.roles, "admin"));
+      setIsSalesManager(hasRole(session.roles, "sales_manager"));
+      setIsSalesperson(hasRole(session.roles, "sales_person"));
+
+      
 
       setSessionError('');
       const canSeeTeamData = hasRole(session.roles, 'admin') || hasRole(session.roles, 'sales_manager');
@@ -721,7 +753,11 @@ export default function EnquiriesScreen() {
               <Text style={[styles.tableHeaderCell, styles.colDate]}>Date</Text>
               <Text style={[styles.tableHeaderCell, styles.colEnqNo]}>Enquiry No.</Text>
               <Text style={[styles.tableHeaderCell, styles.colCustomer]}>Customer</Text>
-              <Text style={[styles.tableHeaderCell, styles.colSalesperson]}>Salesperson</Text>
+              {!isSalesperson && (
+                <Text style={[styles.tableHeaderCell, styles.colSalesperson]}>
+                  Salesperson
+                </Text>
+              )}
               <Text style={[styles.tableHeaderCell, styles.colMode]}>Mode</Text>
               <Text style={[styles.tableHeaderCell, styles.colStatus]}>Status</Text>
               <Text style={[styles.tableHeaderCell, styles.colJobId]}>Job ID</Text>
@@ -735,6 +771,7 @@ export default function EnquiriesScreen() {
                 selected={selectedId === enquiry.id}
                 onSelect={() => setSelectedId(enquiry.id)}
                 onOpen={() => handleViewEnquiry(enquiry.id)}
+                showSalesperson={!isSalesperson}
               />
             ))}
           </View>
@@ -769,9 +806,9 @@ export default function EnquiriesScreen() {
                     </View>
                     <Text style={[styles.radioLabel, reportRange === r && styles.radioLabelActive]}>
                       {r === 'daily' ? 'Daily Report (Today)' :
-                       r === 'weekly' ? 'Weekly Report (Last 7 days)' :
-                       r === 'monthly' ? 'Monthly Report (This month)' :
-                       'Custom Date Range'}
+                        r === 'weekly' ? 'Weekly Report (Last 7 days)' :
+                          r === 'monthly' ? 'Monthly Report (This month)' :
+                            'Custom Date Range'}
                     </Text>
                   </TouchableOpacity>
                 ))}

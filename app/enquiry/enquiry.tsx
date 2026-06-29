@@ -24,6 +24,20 @@ type CustomerMasterRow = {
   gst: string | null;
 };
 
+type ShipperMasterRow = {
+  id: number;
+  name: string;
+  address: string | null;
+  gst: string | null;
+};
+
+type ConsigneeMasterRow = {
+  id: number;
+  name: string;
+  address: string | null;
+  gst: string | null;
+};
+
 type PortRow = {
   id: number;
   country_name: string;
@@ -160,6 +174,13 @@ export default function EnquiryScreen() {
 
   const [POD_PORTS, setPOD_PORTS] = useState<PortRow[]>([]);
 
+  const [SHIPPERS, setSHIPPERS] = useState<ShipperMasterRow[]>([]);
+  const [shipperModalVisible, setShipperModalVisible] = useState(false);
+  const [shipperQuery, setShipperQuery] = useState("");
+
+  const [CONSIGNEES, setCONSIGNEES] = useState<ConsigneeMasterRow[]>([]);
+  const [consigneeModalVisible, setConsigneeModalVisible] = useState(false);
+  const [consigneeQuery, setConsigneeQuery] = useState("");
 
   const selectedMode = MODE_OPTIONS.find(
     (m) => m.id === form.mode_id
@@ -203,6 +224,26 @@ export default function EnquiryScreen() {
     [CUSTOMERS, customerQuery],
   );
 
+  const shipperExactMatch = SHIPPERS.some(
+    (s) =>
+      s.name.trim().toLowerCase() ===
+      shipperQuery.trim().toLowerCase()
+  );
+
+  const consigneeExactMatch = CONSIGNEES.some(
+    (c) =>
+      c.name.trim().toLowerCase() ===
+      consigneeQuery.trim().toLowerCase()
+  );
+
+  const filteredShippers = SHIPPERS.filter((s) =>
+    s.name.toLowerCase().includes(shipperQuery.toLowerCase())
+  );
+
+  const filteredConsignees = CONSIGNEES.filter((c) =>
+    c.name.toLowerCase().includes(consigneeQuery.toLowerCase())
+  );
+
   function openCustomerModal() {
     setCustomerQuery(form.customer_name || '');
     setCustomerModalVisible(true);
@@ -220,6 +261,32 @@ export default function EnquiryScreen() {
     setCustomerQuery('');
   }
 
+  function selectExistingShipper(
+    shipper: ShipperMasterRow
+  ) {
+    setForm((prev) => ({
+      ...prev,
+      shipper_id: shipper.id,
+      shipper: shipper.name,
+    }));
+
+    setShipperModalVisible(false);
+  }
+
+  function selectExistingConsignee(
+    cnee: ConsigneeMasterRow
+  ) {
+    setForm((prev) => ({
+      ...prev,
+      cnee_id: cnee.id,
+      cnee: cnee.name,
+    }));
+
+    setConsigneeModalVisible(false);
+  }
+
+
+
   function addNewCustomerName() {
     const trimmed = customerQuery.trim();
     if (!trimmed) return;
@@ -229,8 +296,32 @@ export default function EnquiryScreen() {
     setCustomerQuery('');
   }
 
+  function addNewShipperName() {
+    const name = shipperQuery.trim();
 
-  // Fetch masters (mode_master, customer_master)
+    setForm((prev) => ({
+      ...prev,
+      shipper_id: null,
+      shipper: name,
+    }));
+
+    setShipperModalVisible(false);
+  }
+
+  function addNewConsigneeName() {
+    const name = consigneeQuery.trim();
+
+    setForm((prev) => ({
+      ...prev,
+      cnee_id: null,
+      cnee: name,
+    }));
+
+    setConsigneeModalVisible(false);
+  }
+
+
+  // Fetch masters (mode_master, customer_master, shipper_master, consignee_master) on component mount
   useEffect(() => {
     async function fetchMasters() {
       try {
@@ -246,6 +337,25 @@ export default function EnquiryScreen() {
           .from('customer_master')
           .select('id, name, address, gst')
           .order('name', { ascending: true });
+
+        const { data: shippers, error: shippersErr } = await (supabase as any)
+          .from("shipper_master")
+          .select("id,name,address,gst")
+          .order("name");
+
+        if (shippersErr) throw shippersErr;
+
+        setSHIPPERS((shippers ?? []) as ShipperMasterRow[]);
+
+
+        const { data: consignees, error: consigneesErr } = await (supabase as any)
+          .from("consignee_master")
+          .select("id,name,address,gst")
+          .order("name");
+
+        if (consigneesErr) throw consigneesErr;
+
+        setCONSIGNEES((consignees ?? []) as ConsigneeMasterRow[]);
 
 
         console.log('[customer_master] error:', customersErr);
@@ -431,11 +541,34 @@ export default function EnquiryScreen() {
         return;
       }
 
+      let customerId = form.customer_id;
+
+      if (!customerId && form.customer_name.trim()) {
+        const { data, error } = await (supabase as any).rpc(
+          "get_or_create_customer",
+          {
+            p_name: form.customer_name,
+            p_gst: form.customer_gst,
+            p_address: form.customer_address,
+            p_sales_person_id: isAdmin
+              ? (form.sales_person_id ?? null)
+              : (form.sales_person_id ?? session.salesperson?.id ?? null),
+          }
+        );
+      
+        if (error) {
+          console.error("[customer] RPC error:", error);
+          throw error;
+        }
+      
+        customerId = data;
+      }
+
       const payload = {
         enquiry_no: form.enquiry_no.trim() || null,
         company_id: form.company_id ?? 6,
         enq_date: form.enq_date ? form.enq_date : null,
-        customer_id: form.customer_id,
+        customer_id: customerId,
         customer_name: form.customer_name.trim() || null,
 
         customer_address: form.customer_address.trim() || null,
@@ -584,23 +717,62 @@ export default function EnquiryScreen() {
             </View>
           </View>
 
-<SearchModal<CustomerMasterRow>
-  visible={customerModalVisible}
-  title="Select Customer"
-  search={customerQuery}
-  setSearch={setCustomerQuery}
-  data={filteredCustomers}
-  keyExtractor={(item) => String(item.id)}
-  labelExtractor={(item) => item.name}
-  subtitleExtractor={(item) => item.gst || ""}
-  onSelect={selectExistingCustomer}
-  onClose={() => setCustomerModalVisible(false)}
-  showAddButton={
-    customerQuery.trim().length > 0 && !customerExactMatch
-  }
-  addButtonText={`Add "${customerQuery.trim()}" as new customer`}
-  onAddNew={addNewCustomerName}
-/>
+          <SearchModal<CustomerMasterRow>
+            visible={customerModalVisible}
+            title="Select Customer"
+            search={customerQuery}
+            setSearch={setCustomerQuery}
+            data={filteredCustomers}
+            keyExtractor={(item) => String(item.id)}
+            labelExtractor={(item) => item.name}
+            subtitleExtractor={(item) => item.gst || ""}
+            onSelect={selectExistingCustomer}
+            onClose={() => setCustomerModalVisible(false)}
+            showAddButton={
+              customerQuery.trim().length > 0 && !customerExactMatch
+            }
+            addButtonText={`Add "${customerQuery.trim()}" as new customer`}
+            onAddNew={addNewCustomerName}
+          />
+
+
+          <SearchModal<ShipperMasterRow>
+            visible={shipperModalVisible}
+            title="Select Shipper"
+            search={shipperQuery}
+            setSearch={setShipperQuery}
+            data={filteredShippers}
+            keyExtractor={(item) => String(item.id)}
+            labelExtractor={(item) => item.name}
+            subtitleExtractor={(item) => item.gst ?? ""}
+            onSelect={selectExistingShipper}
+            onClose={() => setShipperModalVisible(false)}
+            showAddButton={
+              shipperQuery.trim().length > 0 &&
+              !shipperExactMatch
+            }
+            addButtonText={`Add "${shipperQuery.trim()}" as new shipper`}
+            onAddNew={addNewShipperName}
+          />
+
+          <SearchModal<ConsigneeMasterRow>
+            visible={consigneeModalVisible}
+            title="Select Consignee"
+            search={consigneeQuery}
+            setSearch={setConsigneeQuery}
+            data={filteredConsignees}
+            keyExtractor={(item) => String(item.id)}
+            labelExtractor={(item) => item.name}
+            subtitleExtractor={(item) => item.gst ?? ""}
+            onSelect={selectExistingConsignee}
+            onClose={() => setConsigneeModalVisible(false)}
+            showAddButton={
+              consigneeQuery.trim().length > 0 &&
+              !consigneeExactMatch
+            }
+            addButtonText={`Add "${consigneeQuery.trim()}" as new consignee`}
+            onAddNew={addNewConsigneeName}
+          />
 
           <SearchModal<string>
             visible={polCountryModalVisible}
@@ -702,11 +874,47 @@ export default function EnquiryScreen() {
           <View style={styles.grid2}>
             <View style={styles.field}>
               <FieldLabel>Shipper</FieldLabel>
-              <Input value={form.shipper} onChangeText={(t) => setForm((p) => ({ ...p, shipper: t }))} placeholder="Shipper name" />
+              <TouchableOpacity
+                style={styles.customerPickerField}
+                onPress={() => setShipperModalVisible(true)}
+              >
+                <Text
+                  style={[
+                    styles.customerPickerText,
+                    !form.shipper && styles.customerPickerPlaceholder,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {form.shipper || "Search or add a shipper"}
+                </Text>
+
+                <Search
+                  size={16}
+                  color={COLORS.textLight}
+                />
+              </TouchableOpacity>
             </View>
             <View style={styles.field}>
               <FieldLabel>Cnee</FieldLabel>
-              <Input value={form.cnee} onChangeText={(t) => setForm((p) => ({ ...p, cnee: t }))} placeholder="Consignee name" />
+              <TouchableOpacity
+                style={styles.customerPickerField}
+                onPress={() => setConsigneeModalVisible(true)}
+              >
+                <Text
+                  style={[
+                    styles.customerPickerText,
+                    !form.cnee && styles.customerPickerPlaceholder,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {form.cnee || "Search or add a consignee"}
+                </Text>
+
+                <Search
+                  size={16}
+                  color={COLORS.textLight}
+                />
+              </TouchableOpacity>
             </View>
           </View>
 

@@ -66,7 +66,7 @@ export const searchModalStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 10,
-    height: 42,
+    height: 60,
     paddingHorizontal: 12,
     fontSize: 14,
     color: COLORS.text,
